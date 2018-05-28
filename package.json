@@ -1,0 +1,23 @@
+{
+  "scripts": {
+    "start": "nodemon index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "engines": {
+    "node": "6.11.1"
+  },
+  "name": "hw_telegram_bot",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "dependencies": {
+    "await": "^0.2.6",
+    "mysql": "^2.15.0",
+    "mysql2": "^1.5.3",
+    "node-telegram-bot-api": "^0.30.0",
+    "nodemon": "^1.17.5"
+  },
+  "devDependencies": {},
+  "author": "",
+  "license": "ISC"
+}
