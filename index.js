@@ -16,10 +16,25 @@ var results = {
     // }
 };
 
+var requests = {
+    //chat_id: {
+    //  group_type:fdsds;
+        //queries:[{}]    
+    //}
+};
+
 const lvlans = {
     parse_mode: "Markdown",
     reply_markup: {
         keyboard: [["Yes"], ["No"]],
+        resize_keyboard: true,
+        one_time_keyboard: true,
+    },
+};
+const lesson = {
+    parse_mode: "Markdown",
+    reply_markup: {
+        keyboard: [["Групповые занятия"], ["Индивидуальные занятия"]],
         resize_keyboard: true,
         one_time_keyboard: true,
     },
@@ -166,8 +181,48 @@ bot.onText(/\/start/, async function (msg, match) {
  
 });
 
+bot.onText(/\/request/, async function (msg, match) {
+    const chatId = msg.chat.id;
+    if (requests[chatId]!=null && requests[chatId]["group_type"]!=null) {
+        bot.sendMessage(chatId, "Ваша заявка уже присутствует в базе! Пожалуйста удалите предыдущую заявку по /delete и затем попробуйте снова!");
+        return;
+    }
+    bot.sendMessage(chatId, "Итак, чтобы оставить заявку на групповые/индивидуальные занятия нужно будет заполнить кое-какую информацию: ");
+    bot.sendMessage(chatId, "Какой вид занятий для вас будет удобен?", lesson).then(async function() {
+        bot.once('message', async function (answer) {
+            var res = answer.text;
+            if (res=="Индивидуальные занятия") {
+                requests[chatId]={}
+                requests[chatId]["group_type"] = 1;
+            } else {
+                requests[chatId]={}
+                requests[chatId]["group_type"] = 0;
+            }
+            bot.sendMessage(chatId, "Теперь введите пожалуйста все дни и все удобные промежутки времени когда Вам будет удобно заниматься, в следующем формате: \nПонедельник 18:00-20:00\nПонедельник 13:00-17:00\nВоскресенье 14:00-18:00 и т.д.\nЗаметьте, начало и конец промежутка времени только целое значение часов (формат 18:30 не разрешается)").then(async function() {
+                bot.once('message', async function (answer2) {
+                    var feedback="Ваша заявка принята! Добавлены следующие слоты удобоных для вас занятий:\n"
+                    var res2 = answer2.text;
+                    var arr = res2.split("\n");
+                    for (var i=0;i<arr.length;i++) {
+                        var dayntime = arr[i].split(" ");
+                        var time = dayntime[1].split("-");
+                        var response = await sendRequest(chatId,dayntime[0],time[0], time[1]);
+                        feedback+=dayntime[0] + time[0]
+                        if (response=="success"){
+                            bot.sendMessage(chatId, "Ваша заявка принята! Добавлены следующие удобные слоты времени для занятий:\n" + arr[i]);
+                        } else {
+                            bot.sendMessage(chatId, "Неверный формат заявки " + arr[i] + "! Подайте заявку заново!");
+                        }
+                    }
+                    bot.sendMessage(chatId,"Чтобы удалить заявку перейдите по /delete");
+                })
+            })
+        })
+    })
+});
 bot.onText(/\/test/, async function (msg, match) {
     const chatId = msg.chat.id;
+    //must check whether he finished this test!
     bot.sendMessage(chatId, "Итак, давайте начнем!");
     bot.sendMessage(chatId, "Hello!", begin).then(() => {
         bot.once('message', (answer) => {
@@ -194,6 +249,56 @@ bot.onText(/\/test/, async function (msg, match) {
 //     console.log(error.code);  // => 'EFATAL'
 //   });
 
+async function sendRequest(chatId, day, startfull, finishfull) {
+    //console.log(day, startfull,finishfull );
+    var nday;
+    try {
+        var arr = startfull.split(":");
+        var arr2 = finishfull.split(":");
+    } catch  (err) {
+        console.log(err);
+        return "error";
+    }
+    var start = arr[0];
+    var finish = arr2[0];
+    // switch (day) {
+    //     case 'Понедельник': nday=1;
+    //     case "Вторник": nday=2;
+    //     case "Среда": nday=3;
+    //     case "Четверг": nday=4;
+    //     case "Пятница": nday=5;
+    //     case "Суббота": nday=6; 
+    //     default: nday=7;
+    // }
+    if (day=="Понедельник") nday =1;
+    else if (day=="Вторник") nday =2;
+    else if (day=="Среда") nday =3;
+    else if (day=="Четверг") nday =4;
+    else if (day=="Пятница") nday =5;
+    else if (day=="Суббота") nday =6;
+    else if (day=="Воскресенье") nday =7;
+    else {
+        return "error";
+    }
+    console.log(nday);
+    var db = await connect();
+    var data;
+    try{
+        data = await db.query("SELECT student_id from student WHERE chat_id = ?", [chatId]);
+    } catch (err) {
+        console.log(err)
+        return "error";
+    }
+    var studentId = data[0][0].student_id;
+    try {
+        await db.query("INSERT INTO req (student_id, nday, start_time, finish_time, group_type) VALUES (?,?,?,?,?)", [studentId,nday,start, finish, requests[chatId]["group_type"]]);
+    } catch(err) {
+        console.log(err);
+        return "error";
+    }
+    db.close();
+    return "success";
+}
 const choice = {
     parse_mode: "Markdown",
     reply_markup: {
@@ -232,6 +337,7 @@ async function sendQuestion(i, chatId) {
                 bot.sendMessage(chatId, "Ваш результат : " + result + " правильных ответов из " + i);
                 let lvl = await getLevel(chatId, result, i);
                 bot.sendMessage(chatId, "Ваш уровень: " + lvl);
+                bot.sendMessage(chatId, "Теперь отправьте заявку для записи на групповое либо индивидуальное занятие  с помощью /request. Ввм нужно будет заполнить удобные для вас дни и время! ")
             }
         })
     })
