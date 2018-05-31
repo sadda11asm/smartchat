@@ -1,13 +1,23 @@
 const TelegramBot = require('node-telegram-bot-api');
-var mysql = require("mysql2/promise");
+const mysql = require("mysql2/promise");
+const axios = require("axios");
+const http = require("http");
+var debug = require('debug')('smart_telegram_bot:server');
 
+const app = require('./app');
+
+var port = normalizePort(process.env.PORT || '3000');
+app.set('port', port);
+var server = http.createServer(app);
+
+// const express = require('express')
+// var app = express()
 const token = '618188164:AAEiVdGaCpgjYef62YKSfLyAO5dxJTvq6vk';
-
 const hello = "Вас приветствует Smartchat Bot! Я буду Вашим проводником и помощником во время обучения по по английскому языку! Итак, давайте начнем наше знакомство! Прошу, скажите ваше имя:"
-
-
 const bot = new TelegramBot(token, {polling: true});
 
+// var port = normalizePort(process.env.PORT || '8080');
+// app.set('port', port);
 var message = {
 }
 var results = {
@@ -16,6 +26,14 @@ var results = {
     // }
 };
 
+var test = {
+    //247532533:true
+}
+var chat = {
+    //247532533:true
+    //chat_id: true
+}
+
 var requests = {
     //chat_id: {
     //  group_type:fdsds;
@@ -23,6 +41,14 @@ var requests = {
     //}
 };
 
+const update = {
+    parse_mode: "Markdown",
+    reply_markup: {
+        keyboard: [["Имя"], ["Фамилия"], ["Номер"], ["Имейл"]],
+        resize_keyboard: true,
+        one_time_keyboard: true,
+    },
+};
 const lvlans = {
     parse_mode: "Markdown",
     reply_markup: {
@@ -58,29 +84,25 @@ const begin = {
 };
 async function connect(){
     let con = await mysql.createConnection({
-        host: "localhost",
-        user:"root",
-        password:"12345",
+        host: "192.168.1.102",
+        user:"user",
+        password:"mysql",
+        // host:'localhost',
+        // user:"root",
+        // password: "12345",
         database:"smartchat",
         insecureAuth: true
     });
     return con;
 }
 
-bot.onText(/\/echo (.+)/, (msg, match) => {
-  // 'msg' is the received Message from Telegram
-  // 'match' is the result of executing the regexp above on the text content
-  // of the message
-  const chatId = msg.chat.id;
-  const resp = match[1]; // the captured "whatever"
-
-  // send back the matched "whatever" to the chat
-  bot.sendMessage(chatId, JSON.stringify(msg));
-});
-
 bot.on('message', async function (msg) {
     const chatId = msg.chat.id;
     const text = msg.text;
+    if (chat[chatId]!=null && chat[chatId]==true) {
+        await sendMessage(chatId, text);
+        return;
+    }
     if (text === "/start") {
         console.log("Cannot!")
         return;
@@ -183,7 +205,12 @@ bot.onText(/\/start/, async function (msg, match) {
 
 bot.onText(/\/request/, async function (msg, match) {
     const chatId = msg.chat.id;
-    if (requests[chatId]!=null && requests[chatId]["group_type"]!=null) {
+    var check = await isExists(chatId, "chat_id");
+    if (!check) {
+        bot.sendMessage(chatId, "Пожалуйста для начала пройдите регистрацию по /start!");
+        return;
+    }
+    if (requests[chatId]!=null && requests[chatId]["lessons"]!=null) {
         bot.sendMessage(chatId, "Ваша заявка уже присутствует в базе! Пожалуйста удалите предыдущую заявку по /delete и затем попробуйте снова!");
         return;
     }
@@ -204,17 +231,37 @@ bot.onText(/\/request/, async function (msg, match) {
                     var res2 = answer2.text;
                     var arr = res2.split("\n");
                     for (var i=0;i<arr.length;i++) {
-                        var dayntime = arr[i].split(" ");
-                        var time = dayntime[1].split("-");
+                        try{
+                            var dayntime = arr[i].split(" ");
+                            var time = dayntime[1].split("-");
+                        } catch (err) {
+                            bot.sendMessage(chatId, "Неверный формат заявки " + arr[i] + "! Подайте заявку заново!");
+                        }
+                        // try {
+                        //     data = await db.query("SELECT start_time, finish_time from req WHERE student_id = ? AND nday = ?", [studentId, nday]);
+                        //     var ans = data[0];
+                        //     console.log(ans);
+                        //     for (var i=0;i<ans.length;i++) {
+                        //         var st = ans[i].start_time;
+                        //         var fi = ans[i].finish_time;
+                        //         console.log(st, fi);
+                                
+                        //     }
+                        // } catch (err) {
+                        //     console.log(err);
+                        // }    
                         var response = await sendRequest(chatId,dayntime[0],time[0], time[1]);
                         feedback+=dayntime[0] + time[0]
                         if (response=="success"){
                             bot.sendMessage(chatId, "Ваша заявка принята! Добавлены следующие удобные слоты времени для занятий:\n" + arr[i]);
+                            requests[chatId]["lessons"] = 1;
                         } else {
                             bot.sendMessage(chatId, "Неверный формат заявки " + arr[i] + "! Подайте заявку заново!");
                         }
                     }
-                    bot.sendMessage(chatId,"Чтобы удалить заявку перейдите по /delete");
+                    if (requests[chatId]!=null && requests[chatId]["lessons"]!=null) {
+                        bot.sendMessage(chatId,"Чтобы удалить заявку перейдите по /delete. Когда один из преподавателей добавит вас в свою группу мы Вам дадим знать!");
+                    }
                 })
             })
         })
@@ -222,6 +269,15 @@ bot.onText(/\/request/, async function (msg, match) {
 });
 bot.onText(/\/test/, async function (msg, match) {
     const chatId = msg.chat.id;
+    var check = await isExists(chatId, "chat_id");
+    if (!check) {
+        bot.sendMessage(chatId, "Пожалуйста для начала пройдите регистрацию по /start!");
+        return;
+    }
+    if (test[chatId]!= null && test[chatId]==true) {
+        bot.sendMessage(chatId, "Ваш уровень уже определен! Вы не можете повторно пройти уровневый тест!");
+        return;
+    }
     //must check whether he finished this test!
     bot.sendMessage(chatId, "Итак, давайте начнем!");
     bot.sendMessage(chatId, "Hello!", begin).then(() => {
@@ -248,7 +304,112 @@ bot.onText(/\/test/, async function (msg, match) {
 // bot.on('polling_error', (error) => {
 //     console.log(error.code);  // => 'EFATAL'
 //   });
+bot.onText(/\/delete/, async function(msg, match) {
+    const chatId = msg.chat.id;
+    var check = await isExists(chatId, 'chat_id');
+    if (!check) {
+        bot.sendMessage(chatId, "Пожалуйста для начала пройдите регистрацию по /start!");
+        return;       
+    }
+    await deleteRequests(chatId);
+    requests[chatId]={}
+    bot.sendMessage(chatId, "Ваша заявка удалена! Можете отправить новую заявку по /request!")
 
+
+
+})
+
+bot.onText(/\/update/, async function(msg, match) {
+    const chatId = msg.chat.id;
+    bot.sendMessage (chatId, "Что вы хотите изменить?", update).then (async function () {
+        bot.once('message',  async function (answer) {
+            var res = answer.text;
+            var item;
+            if (res=="Имя") item = "firstname"
+            if (res=="Фамилия") item = "lastname"
+            if (res=="Номер") item = "phone"
+            if (res=="Имейл") item = "email"
+            bot.sendMessage(chatId, "Введите новое значение:").then (async function () {
+                bot.once('message', async function (answer2) {
+                    var res2 = answer2.text;
+                    await updateInfo(chatId,item, res2);
+                })
+            })
+        }) 
+    })
+})
+
+async function updateInfo(chatId, item, val) {
+    var db = await connect();
+    var query = "UPDATE student SET " + item + " = '" + val + "' WHERE chat_id = " + chatId + ";"
+    console.log(query);
+    try {
+        await db.query(query);
+        await bot.sendMessage(chatId, "Успешно изменено!")
+    } catch(err) {
+        console.log(err);
+    } finally {
+        db.close();
+    }
+}
+async function sendMessage(chatId, text) {
+    var student_id = await getId(chatId);
+    var group_id = await getGroup(chatId);
+
+    //     axios.po('/192.168.1.102:3000/chat')
+    //   .then(function (response) {
+    //     console.log(response);
+    //   })
+    //   .catch(function (error) {
+    //     console.log(error);
+    //   });
+    await axios.post('http://192.168.1.102:3000/message', {
+        text : text,
+        group_id:group_id,
+        student_id:student_id
+    }).then(function(res) {
+        console.log(res);
+    }).catch(function(err) {
+        console.log(err);
+    })
+}
+
+async function deleteRequests(chatId) {
+    var query = "DELETE FROM req WHERE student_id = ?";
+    var db  = await connect();
+    var student_id = await getId(chatId);
+    try {
+        await db.query(query, [student_id]);
+    } catch (err) {
+        console.log(err)
+    } finally{
+        db.close();
+    }
+}
+async function getId(chatId) {
+    var db = await connect();
+    var data;
+    try{
+        data = await db.query("SELECT student_id from student WHERE chat_id = ?", [chatId]);
+    } catch (err) {
+        console.log(err)
+        return "error";
+    }
+    var studentId = data[0][0].student_id;
+    return studentId;
+}
+async function getGroup(chatId) {
+    var db = await connect();
+    var data;
+    try{
+        data = await db.query("SELECT group_id from student WHERE chat_id = ?", [chatId]);
+    } catch (err) {
+        console.log(err)
+        return "error";
+    }
+    var groupId = data[0][0].group_id;
+    return groupId;
+}
 async function sendRequest(chatId, day, startfull, finishfull) {
     //console.log(day, startfull,finishfull );
     var nday;
@@ -261,6 +422,9 @@ async function sendRequest(chatId, day, startfull, finishfull) {
     }
     var start = arr[0];
     var finish = arr2[0];
+    if (start==finish) {
+        return "error";
+    }
     // switch (day) {
     //     case 'Понедельник': nday=1;
     //     case "Вторник": nday=2;
@@ -290,8 +454,8 @@ async function sendRequest(chatId, day, startfull, finishfull) {
         return "error";
     }
     var studentId = data[0][0].student_id;
-    try {
-        await db.query("INSERT INTO req (student_id, nday, start_time, finish_time, group_type) VALUES (?,?,?,?,?)", [studentId,nday,start, finish, requests[chatId]["group_type"]]);
+    try{
+        await db.query("INSERT INTO req (finish_time, start_time, student_id, nday) VALUES (?,?,?,?)",[finish, start,studentId, nday]);
     } catch(err) {
         console.log(err);
         return "error";
@@ -316,6 +480,11 @@ async function sendQuestion(i, chatId) {
     if (check) {
         let b = await bot.sendPhoto(chatId, path);
     }
+    check = await isAudioExists(i);
+    path = './audios/' + i + '.mp3'
+    if (check) {
+        let b =await bot.sendAudio(chatId, path);
+    }
     console.log(path);
     bot.sendMessage(chatId, variants, choice).then(async function () {
         bot.once('message', async function (answer) {
@@ -338,6 +507,7 @@ async function sendQuestion(i, chatId) {
                 let lvl = await getLevel(chatId, result, i);
                 bot.sendMessage(chatId, "Ваш уровень: " + lvl);
                 bot.sendMessage(chatId, "Теперь отправьте заявку для записи на групповое либо индивидуальное занятие  с помощью /request. Ввм нужно будет заполнить удобные для вас дни и время! ")
+                test[chatId]=true;
             }
         })
     })
@@ -353,7 +523,7 @@ async function getVariants(i) {
     } catch (err) {
         console.log(err);
     }
-    var arr= data[0][0].ans.split("$");
+    var arr= data[0][0].ans.split("%%");
     var ans = "\n";
     for (var i=0;i<arr.length;i++) {
         ans += (i+1) + " " + arr[i]+"\n";
@@ -471,21 +641,57 @@ async function isPhotoExists(i) {
     db.close();
     return (data[0].length>0);
 }
-// function handleResult(err, res) {
-//     if (err) {
-//         console.log(err);
-//         return;
-//     }
-//     // console.log(res);
-//     return res;
-// }
+
+async function isAudioExists(i) {
+    let db = await connect();
+    var query = "SELECT * FROM test1 WHERE quest_id = ? AND audio IS NOT NULL";
+    //console.log(query);
+    var data = await db.query(query, [i]);
+    //console.log("It is data " + chatId + ":", data);
+    //console.log("check", data[0].length!=0)
+    db.close();
+    return (data[0].length>0);
+}
 
 
 
 
-
-
-
+function onError(error) {
+    if (error.syscall !== 'listen') {
+      throw error;
+    }
+  
+    var bind = typeof port === 'string'
+      ? 'Pipe ' + port
+      : 'Port ' + port;
+  
+    // handle specific listen errors with friendly messages
+    switch (error.code) {
+      case 'EACCES':
+        console.error(bind + ' requires elevated privileges');
+        process.exit(1);
+        break;
+      case 'EADDRINUSE':
+        console.error(bind + ' is already in use');
+        process.exit(1);
+        break;
+      default:
+        throw error;
+    }
+  }
+  
+  /**
+   * Event listener for HTTP server "listening" event.
+   */
+  
+  function onListening() {
+    var addr = server.address();
+    var bind = typeof addr === 'string'
+      ? 'pipe ' + addr
+      : 'port ' + addr.port;
+    debug('Listening on ' + bind);
+  }
+  
 
 function sendReminder(chatId) {
     if (isLate(chatId)) {
@@ -500,3 +706,24 @@ function isLate(chatId) {
     });
     return data==1;
 }
+
+
+function normalizePort(val) {
+    var port = parseInt(val, 10);
+  
+    if (isNaN(port)) {
+      // named pipe
+      return val;
+    }
+  
+    if (port >= 0) {
+      // port number
+      return port;
+    }
+  
+    return false;
+  }
+  
+server.listen(port);
+server.on('error', onError);
+server.on('listening', onListening);
