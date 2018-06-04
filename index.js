@@ -2,14 +2,26 @@ const TelegramBot = require('node-telegram-bot-api');
 const mysql = require("mysql2/promise");
 const axios = require("axios");
 const http = require("http");
+const cron = require('cron');
 var debug = require('debug')('smart_telegram_bot:server');
+var express = require('express');
 
-const app = require('./app');
+var app = express();
+var bodyParser  = require('body-parser');
+app.use(bodyParser.urlencoded({ extended: false }));
+app.use(bodyParser.json());
+app.use('/photos', express.static('./photos'))
+app.use('/audios',express.static('./audios')) 
 
+  
 var port = normalizePort(process.env.PORT || '3000');
 app.set('port', port);
+
 var server = http.createServer(app);
 
+app.get('/', function(req, res) {
+    res.send('Hello!');
+});
 // const express = require('express')
 // var app = express()
 const token = '618188164:AAEiVdGaCpgjYef62YKSfLyAO5dxJTvq6vk';
@@ -96,14 +108,76 @@ async function connect(){
     return con;
 }
 
+
 bot.on('message', async function (msg) {
     const chatId = msg.chat.id;
+    console.log(msg);
     const text = msg.text;
-    if (chat[chatId]!=null && chat[chatId]==true) {
-        await sendMessage(chatId, text);
+    var photo;
+    var audio;
+    var document;
+    var content;
+    try{
+        if (text!=null) {
+            content = text;
+        } else {
+           // console.log("Not Text");
+        }
+    } catch(err) {
+       // console.log("Not Text");
+    }
+    try {
+        photo = msg.photo[3]["file_id"];
+         var path = await getPath(photo);
+        content = path;
+    } catch (err) {
+        // console.log("Not Photo");
+    }
+    try {
+        audio = msg.voice["file_id"];
+        content = await getPath(audio);
+    } catch (err) {
+        // console.log(err);
+    }
+    try {
+        document = msg.document["file_id"];
+        content = await getPath(document);
+    } catch (err) {
+        // console.log(err);
+    }
+    var type;
+    if (text!=null) {
+        type = 0;
+    }
+    if (photo!=null) {
+        type = 1;
+    }
+    if (audio !=null) {
+        type = 2;
+    }
+    if (document!=null) {
+        type = 3;
+    }
+    var database = await connect();
+    var stream;
+    try {
+        stream = await database.query("SELECT stream, student_id, group_id FROM student WHERE chat_id = ?", [chatId]);
+        if (stream[0][0]["stream"]!=null && stream[0][0]["stream"]==1) {
+            await database.query("INSERT INTO chat (group_id, sender_id, content, type) VALUES (?, ?, ?, ?)", [stream[0][0]["group_id"], stream[0][0]["student_id"], content, type]);
+        }//console.log(stream);
+    } catch (err) {
+        console.log(err);
+    } finally {
+        database.close();
+    }
+    //console.log(stream + " sdfdsf");
+    if (stream[0][0]["stream"]!=null && stream[0][0]["stream"] ==1) {
+        // console.log(content);
+
+        await sendMessage(chatId, content, type);
         return;
     }
-    if (text === "/start") {
+    if (text === "/start" || text === "/update" ||  text === "/test" ||  text === "/request" ||  text === "/exit") {
         console.log("Cannot!")
         return;
     }
@@ -114,7 +188,7 @@ bot.on('message', async function (msg) {
     var notphone = await notExists(chatId, "phone")
     var notlvl = await notLevel(chatId)
 
-    console.log("notlvl", notlvl);
+    //  console.log("notlvl", notlvl);
 
     // send a message to the chat acknowledging receipt of their message
     if (notfirst && ischat_id) {
@@ -151,15 +225,15 @@ bot.on('message', async function (msg) {
                             bot.sendMessage(chatId, "Выберите из списка:", lvldetect).then(() => {
                                 bot.once('message', (ans) => {
                                     var res = ans.text;
-                                    switch(res) {
-                                        case "Beginner" : insert(chatId, "lvl", 1);
-                                        case "Elementary" : insert(chatId, "lvl", 2);
-                                        case "Pre-Intermediate" : insert(chatId, "lvl", 3);
-                                        case "Intermediate" : insert(chatId, "lvl", 4);
-                                        case "Upper-Intermediate" : insert(chatId, "lvl", 5); 
-                                        case "Advanced" : insert(chatId, "lvl", 6);
-                                        case "Mastery" : insert(chatId, "lvl", 7);
-                                    }
+                                        if (res=="Beginner") insert(chatId, "lvl", 1);
+                                        if (res=="Elementary") insert(chatId, "lvl", 2);
+                                        if (res=="Pre-Intermediate") insert(chatId, "lvl", 3);
+                                        if (res=="Intermediate") insert(chatId, "lvl", 4);
+                                        if (res=="Upper-Intermediate") insert(chatId, "lvl", 5); 
+                                        if (res=="Advanced") insert(chatId, "lvl", 6);
+                                        if (res=="Mastery") insert(chatId, "lvl", 7);
+                                    bot.sendMessage(chatId, "Отлично! Ваш уровень записан успешно! Теперь отправьте заявку для записи на групповое либо индивидуальное занятие  с помощью /request. Ввм нужно будет заполнить удобные для вас дни и время! ")
+                                    test[chatId]=true;
                                 });
                             })
                       }
@@ -183,7 +257,7 @@ bot.onText(/\/start/, async function (msg, match) {
     // console.log("start");
     // console.log("Is exists?? ", isExists(chatId, "chat_id"));
     var check = await isExists(chatId, "chat_id");
-    console.log(check);
+    //console.log(check);
     if (check) {
         //console.log("Exists!");
         bot.sendMessage(chatId, "Вы уже зарегистрированы!");  
@@ -198,6 +272,7 @@ bot.onText(/\/start/, async function (msg, match) {
         }
         bot.sendMessage(chatId, hello);
         db.close();
+        await setAva(chatId); 
         // console.log(sqlite.run('SELECT * FROM students'))
     }
  
@@ -210,6 +285,20 @@ bot.onText(/\/request/, async function (msg, match) {
         bot.sendMessage(chatId, "Пожалуйста для начала пройдите регистрацию по /start!");
         return;
     }
+    var db = await connect();
+    try {
+        group = await db.query("SELECT COUNT(*) as cnt FROM student WHERE group_id > 0 AND chat_id = ?", [chatId]);
+        check = group[0][0]["cnt"]>0;
+        console.log(check)
+    } catch (err) {
+        console.log(err);
+    } finally {
+        db.close();
+    }
+    if (check) {
+        bot.sendMessage(chatId, "Вы уже состоите в одной из групп! Для того чтобы выйти из существующей группа вам нужно пройти по /exit . Однако имейте ввиду что в этом случае вам нужно будет подать заявку и ждать согласие преподавателя заново. (Ваша действующая оплата на количество уроков остается неизменна) ");
+        return;
+    }
     if (requests[chatId]!=null && requests[chatId]["lessons"]!=null) {
         bot.sendMessage(chatId, "Ваша заявка уже присутствует в базе! Пожалуйста удалите предыдущую заявку по /delete и затем попробуйте снова!");
         return;
@@ -219,11 +308,15 @@ bot.onText(/\/request/, async function (msg, match) {
         bot.once('message', async function (answer) {
             var res = answer.text;
             if (res=="Индивидуальные занятия") {
+                //console.log("individual")
                 requests[chatId]={}
                 requests[chatId]["group_type"] = 1;
-            } else {
+            } else if (res=="Групповые занятия"){
                 requests[chatId]={}
                 requests[chatId]["group_type"] = 0;
+            } else {
+                bot.sendMessage(chatId, "Не правильно введен тип занятий! Пожалуйта, подайте заявку заново!");
+                return;
             }
             bot.sendMessage(chatId, "Теперь введите пожалуйста все дни и все удобные промежутки времени когда Вам будет удобно заниматься, в следующем формате: \nПонедельник 18:00-20:00\nПонедельник 13:00-17:00\nВоскресенье 14:00-18:00 и т.д.\nЗаметьте, начало и конец промежутка времени только целое значение часов (формат 18:30 не разрешается)").then(async function() {
                 bot.once('message', async function (answer2) {
@@ -236,20 +329,7 @@ bot.onText(/\/request/, async function (msg, match) {
                             var time = dayntime[1].split("-");
                         } catch (err) {
                             bot.sendMessage(chatId, "Неверный формат заявки " + arr[i] + "! Подайте заявку заново!");
-                        }
-                        // try {
-                        //     data = await db.query("SELECT start_time, finish_time from req WHERE student_id = ? AND nday = ?", [studentId, nday]);
-                        //     var ans = data[0];
-                        //     console.log(ans);
-                        //     for (var i=0;i<ans.length;i++) {
-                        //         var st = ans[i].start_time;
-                        //         var fi = ans[i].finish_time;
-                        //         console.log(st, fi);
-                                
-                        //     }
-                        // } catch (err) {
-                        //     console.log(err);
-                        // }    
+                        }    
                         var response = await sendRequest(chatId,dayntime[0],time[0], time[1]);
                         feedback+=dayntime[0] + time[0]
                         if (response=="success"){
@@ -338,11 +418,107 @@ bot.onText(/\/update/, async function(msg, match) {
         }) 
     })
 })
+bot.onText(/\/exit/, async function (msg, match) {
+    const chatId = msg.chat.id;
+    bot.sendMessage (chatId, "Вы уверены что хотите выйти из вашей группы?", lvlans).then (async function () {
+        bot.once('message', async function (answer) {
+            var res = answer.text;
+            if (res=="No") {
+                bot.sendMessage(chatId, "Отлично. Данные не изменены!")
+                return;
+            }
+            if (res=="Yes"){
+                if (requests[chatId]) {
+                    requests[chatId]["group_type"] = null;
+                    requests[chatId]["lessons"] = null
+                }
+                await deleteGroup(chatId);
+                var nles = await getNLes(chatId);
+                await bot.sendMessage(chatId, "Теперь вы не состоите ни в одной из групп и у вас не имеются заявок на обучение. Для того чтобы начать обучение подайте заявку заново по /request! Количество оплаченных уроков на данный момент : " + nles);
+            } 
+        })
+    })
+})
+
+async function getNLes(chatId) {
+    var db = await connect();
+    var nles;
+    try {
+        var data = await db.query("SELECT nles FROM student WHERE chat_id = ?", chatId);
+        nles = data[0][0]["nles"];
+    } catch (err) {
+        console.log(err);
+    } finally {
+        db.close();
+        return nles;
+    }
+}
+async function deleteGroup(chatId) {
+    var db = await connect();
+    try {
+        var group = await db.query("SELECT group_id, student_id FROM student WHERE chat_id = ?", [chatId]);
+        var groupId = group[0][0]["group_id"];
+        var studentId = group[0][0]["student_id"];
+        var groupInfo = await db.query("SELECT teacher_id, group_name FROM gr WHERE group_id = ?", groupId);
+        var groupName = groupInfo[0][0]["group_name"];
+        var teacherId = groupInfo[0][0]["teacher_id"];
+
+        await db.query("UPDATE student SET group_id = 0 WHERE chat_id = ?", [chatId]);
+        var data = await db.query("SELECT group_id from gr where group_id not in (select group_id from student)");
+        //console.log(data[0])
+        var deleted = false;
+        for (var i=0;i<data[0].length;i++) {
+            await db.query("DELETE FROM chart where group_id = ?", [data[0][i]["group_id"]]);
+            await db.query("DELETE FROM gr where group_id = ?", [groupId]);
+            if (data[0][i]["group_id"]==groupId) {
+                deleted = true;
+            }
+        }
+        await sendNotification(studentId, groupId, groupName, teacherId, deleted);
+
+    } catch (err) {
+        console.log(err);
+    } finally {
+        db.close();
+    }
+}
+
+async function sendNotification(studentId, groupId, groupName, teacherId, deleted) {
+    await axios.post('http://192.168.1.102:3000/message', {
+        notice: 2,
+        student_id: studentId,
+        deleted : deleted,
+        group_id : groupId,
+        group_name:groupName,
+        teacher_id:teacherId
+    }).then(function(res) {
+        console.log(res);
+    }).catch(function(err) {
+        console.log(err);
+    })
+}
+
+async function getPath(file_id) {
+    var path = "";
+    //console.log('https://api.telegram.org/bot' + token + "/getFile?file_id=" + file_id);
+    await axios.get('https://api.telegram.org/bot' + token + "/getFile?file_id=" + file_id)
+    .then (async function(response) {
+        //console.log(response.data);
+        var res=response.data;
+        
+        // var res = JSON.stringify(response);
+        path = "https://api.telegram.org/file/bot" + token + "/" + res["result"]["file_path"];
+    })
+    .catch(async function(err) {
+        console.log(err);
+    })
+    return path;
+}
 
 async function updateInfo(chatId, item, val) {
     var db = await connect();
     var query = "UPDATE student SET " + item + " = '" + val + "' WHERE chat_id = " + chatId + ";"
-    console.log(query);
+    //console.log(query);
     try {
         await db.query(query);
         await bot.sendMessage(chatId, "Успешно изменено!")
@@ -352,25 +528,77 @@ async function updateInfo(chatId, item, val) {
         db.close();
     }
 }
-async function sendMessage(chatId, text) {
+
+async function getMessage(chatId, text, groupId) {
+    await bot.sendMessage(chatId, text);
+    var chart = "Расписание ваших занятий:\n"
+    var db = await connect();
+    try {
+        var data = await db.query("SELECT * FROM chart where group_id = ? ORDER BY day", groupId);
+        for (var i = 0;i<data[0].length;i++) {
+            var info = data[0][i]; 
+            var dayfull = info["day"].toString();
+            //console.log(dayfull)
+            var day = dayfull.split(" ");
+            chart+="День " + (i+1) + ": " + day[0] + " " + day[1] + " " + day[2] + " Время: " + info["start_time"] + ":00-" + info["finish_time"] + ":00\n";
+        }
+        chart+="Заметьте что первый урок у вас бесплатный! В последствии придется оплатить за 1 час до начала второго урока! В противном случае доступ к уроку будет закрыт! ";
+        //console.log(data);
+        bot.sendMessage(chatId, chart);
+    } catch (err) {
+        console.log(err);
+    } finally {
+        db.close();
+    }
+}
+async function sendMessage(chatId, content, type) {
     var student_id = await getId(chatId);
     var group_id = await getGroup(chatId);
 
-    //     axios.po('/192.168.1.102:3000/chat')
-    //   .then(function (response) {
-    //     console.log(response);
-    //   })
-    //   .catch(function (error) {
-    //     console.log(error);
-    //   });
+    var db = await connect();
+    try {
+        var nameInfo = await db.query("SELECT firstname, lastname FROM student WHERE chat_id = ?", [chatId]);
+        var name = nameInfo[0][0]["firstname"] + " " + nameInfo[0][0]["lastname"];
+        var students = await db.query("SELECT chat_id FROM student WHERE group_id = ? AND chat_id <> ?", [group_id, chatId]);
+        for (var i=0;i<students[0].length;i++) {
+            var chatS = students[0][i]["chat_id"];
+            if (type == 0) {
+                await bot.sendMessage(chatS, name + ':\n' + content);
+            }
+            if (type==1) {
+                try {
+                    console.log(content);
+                    await bot.sendMessage(chatS, name + ':');
+                    await bot.sendPhoto(chatS, content);
+                } catch (err) {
+                    console.log(err);
+                }
+            }
+
+            if (type == 2) {
+                await bot.sendMessage(chatS, name + ':');
+                await bot.sendAudio(chatS, content);
+            }
+            if (type == 3) {
+                //TO DO
+                bot.send
+            }
+        }
+    } catch (err) {
+        //console.log(err);
+    } finally {
+        db.close();
+    }
     await axios.post('http://192.168.1.102:3000/message', {
-        text : text,
+        notice: 0,
+        content : content,
+        type: type,
         group_id:group_id,
         student_id:student_id
     }).then(function(res) {
-        console.log(res);
+        // console.log(res);
     }).catch(function(err) {
-        console.log(err);
+        //console.log(err);
     })
 }
 
@@ -394,6 +622,8 @@ async function getId(chatId) {
     } catch (err) {
         console.log(err)
         return "error";
+    } finally {
+        db.close();
     }
     var studentId = data[0][0].student_id;
     return studentId;
@@ -422,25 +652,20 @@ async function sendRequest(chatId, day, startfull, finishfull) {
     }
     var start = arr[0];
     var finish = arr2[0];
-    if (start==finish) {
+    console.log(start, finish);
+    if (start<0 || start >24) {
         return "error";
     }
-    // switch (day) {
-    //     case 'Понедельник': nday=1;
-    //     case "Вторник": nday=2;
-    //     case "Среда": nday=3;
-    //     case "Четверг": nday=4;
-    //     case "Пятница": nday=5;
-    //     case "Суббота": nday=6; 
-    //     default: nday=7;
-    // }
+    if (start>=finish) {
+        return "error";
+    }
     if (day=="Понедельник") nday =1;
     else if (day=="Вторник") nday =2;
     else if (day=="Среда") nday =3;
     else if (day=="Четверг") nday =4;
     else if (day=="Пятница") nday =5;
     else if (day=="Суббота") nday =6;
-    else if (day=="Воскресенье") nday =7;
+    else if (day=="Воскресенье") nday =0;
     else {
         return "error";
     }
@@ -454,12 +679,38 @@ async function sendRequest(chatId, day, startfull, finishfull) {
         return "error";
     }
     var studentId = data[0][0].student_id;
+    try {
+        data = await db.query("SELECT start_time, finish_time from req WHERE student_id = ? AND nday = ?", [studentId, nday]);
+        var ans = data[0];
+        console.log(ans);
+        for (var i=0;i<ans.length;i++) {
+            var st = ans[i].start_time;
+            var fi = ans[i].finish_time;
+            if (start>st && start<fi) {
+                db.close();
+                return "error";
+            }
+            if (finish>st && finish<fi) {
+                db.close();
+                return "error";
+            }
+        }
+    } catch (err) {
+        console.log(err);
+    }
     try{
-        await db.query("INSERT INTO req (finish_time, start_time, student_id, nday) VALUES (?,?,?,?)",[finish, start,studentId, nday]);
+        await db.query("INSERT INTO req (finish_time, start_time, student_id, nday, group_type) VALUES (?,?,?,?,?)",[finish, start,studentId, nday, requests[chatId]["group_type"]]);
     } catch(err) {
         console.log(err);
         return "error";
     }
+    await axios.post('http://192.168.1.102:3000/message', {
+        notice: 1
+    }).then(function(res) {
+        console.log(res);
+    }).catch(function(err) {
+        console.log(err);
+    })
     db.close();
     return "success";
 }
@@ -653,7 +904,25 @@ async function isAudioExists(i) {
     return (data[0].length>0);
 }
 
+async function setAva(chatId) {
+    var user_profile = await bot.getUserProfilePhotos(chatId).then (async function(res) {
+        var photo_id = res.photos[0][0].file_id;
+        var photo = await bot.getFile(photo_id).then( async function (result) {
+            var db = await connect();
+            var file_path = result.file_path;
+            var photo_url = `https://api.telegram.org/file/bot${token}/${file_path}`
+            try {
+                await db.query("UPDATE student SET ava = ? where chat_id = ?", [photo_url, chatId]);
+            } catch (err) {
+                console.log(err);
+            } finally {
+                db.close();
+            }
+        });
 
+    });
+
+}
 
 
 function onError(error) {
@@ -724,6 +993,53 @@ function normalizePort(val) {
     return false;
   }
   
-server.listen(port);
+
+app.post('/message', async function (req, res) {
+    console.log(req.body);
+    var notice = req.body.notice;
+    if (notice == 0 ) {
+        if (req.body.text==null || req.body.chat_id==null) {
+            res.json({success: false, msg: 'ERROR OCCURED'});
+        } else {
+            try{
+                await getMessage(req.body.chat_id, req.body.text, req.body.group_id);
+            } catch(err) {
+                console.log(err)
+            }
+            res.json({success: true, msg: 'Successfuly got a message from user.', text: "The text is :" + req.body.text});
+        }
+    } else if (notice == 1) {
+        if (req.body.group_id==null || req.body.content==null || req.body.type==null || !req.body.teacher_name) {
+            console.log("Нету чего-то из данных!");
+            res.json({success: false, msg:'ERROR OCCURED'});
+        } else {
+            var groupId = req.body.group_id;
+            var content = req.body.content;
+            var type = req.body.type;
+            var teacherName = req.body.teacher_name;
+            var db = await connect();
+            try {
+                var students = await db.query("SELECT chat_id FROM student WHERE group_id = ? AND stream = 1", [groupId]);
+                for (var i=0;i<students[0].length;i++) {
+                    if (type==0) {
+                        await bot.sendMessage(students[0][i]["chat_id"], teacherName + ':\n' + content);
+                    } else if (type==1) {
+                        await bot.sendPhoto(students[0][i]["chat_id"], content);
+                    } else if (type==2) {
+                        await bot.sendAudio(students[0][i]["chat_id"], content);
+                    } else if (type ==3) {
+                        ///TO DO
+                    }
+                }
+            } catch (err) {
+                console.log(err);
+            } finally {
+                db.close();
+            }
+            res.json({success: true, msg: 'Successfuly got a message from user.', text: "The text is :" + req.body.text});
+        }
+    }
+})
+server.listen(port, "192.168.1.159");
 server.on('error', onError);
 server.on('listening', onListening);
