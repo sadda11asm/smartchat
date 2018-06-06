@@ -24,7 +24,7 @@ var server = http.createServer(app);
 app.get('/', function(req, res) {
     res.send('Hello!');
 });
-// const express = require('express')
+// const express = require('express')`
 // var app = express()
 const token = '618188164:AAEiVdGaCpgjYef62YKSfLyAO5dxJTvq6vk';
 const hello = "Вас приветствует Smartchat Bot! Я буду Вашим проводником и помощником во время обучения по по английскому языку! Итак, давайте начнем наше знакомство! Прошу, скажите ваше имя:"
@@ -121,13 +121,26 @@ async function connect(){
 
 bot.on('message', async function (msg) {
     const chatId = msg.chat.id;
-    // console.log(msg);
+    console.log("\n\n");
+    console.log(msg);
     const text = msg.text;
     var photo;
     var audio;
     var document;
     var content;
-    var path;
+
+    var fromChat = msg.chat.id;
+    var messageId = msg.message_id;
+    var fileId = null;
+    var caption = msg.caption;
+
+    var video;
+
+    if (text === "/pay" || text === "/start" || text === "/update" ||  text === "/test" ||  text === "/request" ||  text === "/exit") {
+        console.log("Cannot!")
+        return;
+    }
+
     try{
         if (text!=null) {
             content = text;
@@ -137,28 +150,32 @@ bot.on('message', async function (msg) {
     } catch(err) {
        // console.log("Not Text");
     }
-    try {
-        var arr = msg.photo
-        photo = arr[arr.length-1]["file_id"];
-        path = await getPath(photo);
-        content = "https://api.telegram.org/file/bot" + token + "/" + path;
-    } catch (err) {
-        // console.log(err);
+
+    if (msg.photo) {
+        photo = msg.photo[3]["file_id"];
+        fileId = photo;
+         var path = await getPath(photo);
+        content = path;
+        console.log("photo")
     }
-    try {
+    if (msg.voice) {
         audio = msg.voice["file_id"];
-        path = await getPath(audio);
-        content = "https://api.telegram.org/file/bot" + token + "/" + path;
-    } catch (err) {
-        // console.log(err);
-    }
-    try {
+        fileId = audio;
+        console.log(audio);
+        content = await getPath(audio);
+    } 
+    if (msg.document) {
         document = msg.document["file_id"];
-        path = await getPath(document);
-        content = "https://api.telegram.org/file/bot" + token + "/" + path;
-    } catch (err) {
-        // console.log(err);
-    }
+        fileId = document;
+        content = await getPath(document);
+        console.log("doc")
+    } 
+    if (msg.video) {
+        video = msg.video["file_id"];
+        console.log("video")
+        fileId = video;
+        content = await getPath(video);
+    } 
     var type;
     if (text!=null) {
         type = 0;
@@ -166,12 +183,16 @@ bot.on('message', async function (msg) {
     if (photo!=null) {
         type = 1;
     }
-    if (audio !=null) {
+    if (audio!=null) {
         type = 2;
     }
     if (document!=null) {
         type = 3;
     }
+    if (video!=null){
+        type = 4;
+    }
+    console.log(type);
     var database = await connect();
     var stream;
     try {
@@ -187,13 +208,11 @@ bot.on('message', async function (msg) {
     //console.log(stream + " sdfdsf");
     if (stream[0][0]["stream"]!=null && stream[0][0]["stream"] ==1) {
         // console.log(content);
-        await sendMessage(chatId, path,  content, type);
+
+        await sendMessage(chatId, content, type, fromChat, messageId, fileId, caption);
         return;
     }
-    if (text === "/start" || text === "/update" ||  text === "/test" ||  text === "/request" ||  text === "/exit") {
-        console.log("Cannot!")
-        return;
-    }
+    
     var notfirst = await notExists(chatId, "firstname");
     var ischat_id = await isExists(chatId, "chat_id");
     var notlast = await notExists(chatId, "lastname");
@@ -263,6 +282,36 @@ bot.on('message', async function (msg) {
         return;
     }*/
 });
+
+
+bot.onText(/\/pay/, async function (msg, match) {
+    bot.sendInvoice(msg.chat.id, "pay motherfacker", "fuck you and pay", "foo", "381764678:TEST:5737", 'foo', 'RUB', [{label: "blah", amount: '100000'}])
+        .then( (res) => {
+            console.log("\n\norder:")
+            console.log(res);
+            bot.sendMessage(msg.chat.id, "ok");
+        })
+        .catch( (error) => {
+            console.log(error);
+        })
+});
+
+bot.on('pre_checkout_query', (checkout) => {
+    console.log("\n***\npre hceck out");
+    console.log(checkout);
+    try {
+        bot.answerPreCheckoutQuery(checkout.id, true);
+    } catch (ex) {
+        console.log("\n");
+        console.log(ex);
+    }
+    
+})
+
+bot.on('successful_payment', (ctx) => {
+    console.log("\n\nsuccess:");
+    console.log(ctx);
+})
 
 bot.onText(/\/start/, async function (msg, match) {
 
@@ -646,7 +695,7 @@ async function getPath(file_id) {
         var res=response.data;
         
         // var res = JSON.stringify(response);
-        path = res["result"]["file_path"];
+        path = "https://api.telegram.org/file/bot" + token + "/" + res["result"]["file_path"];
     })
     .catch(async function(err) {
         console.log(err);
@@ -690,7 +739,7 @@ async function getMessage(chatId, text, groupId) {
         db.close();
     }
 }
-async function sendMessage(chatId,path,  content, type) {
+async function sendMessage(chatId, content, type, fromChat, messageId, fileId, caption) {
     var student_id = await getId(chatId);
     var group_id = await getGroup(chatId);
 
@@ -701,32 +750,43 @@ async function sendMessage(chatId,path,  content, type) {
         var students = await db.query("SELECT chat_id FROM student WHERE group_id = ? AND chat_id <> ?", [group_id, chatId]);
         for (var i=0;i<students[0].length;i++) {
             var chatS = students[0][i]["chat_id"];
+
+            console.log("send message type: "+type);
+
             if (type == 0) {
                 await bot.sendMessage(chatS, name + ':\n' + content);
             }
             if (type==1) {
                 try {
                     console.log(content);
-                    //const stream = fs.createReadStream(path);
-                    await bot.sendMessage(chatS, name + ':');
-                    await bot.sendPhoto(chatS, content);
+                    // await bot.sendMessage(chatS, name + ':');
+                    await bot.sendPhoto(chatS, fileId, { caption: name+": "+caption });
                 } catch (err) {
                     console.log(err);
                 }
             }
 
             if (type == 2) {
-                try {
-                    console.log(content);
-                    await bot.sendMessage(chatS, name + ':');
-                    await bot.sendAudio(chatS, content);
-                } catch (err) {
-                    // console.log(err)
+                console.log("HEREEEEEEEEEE")
+                // await bot.sendMessage(chatS, name + ':');
+                console.log(fileId);
+                try{
+                    await bot.sendVoice(chatS, fileId, { caption: name+": "+caption });
+                } catch (es) {
+                    console.log(es);
                 }
+                
             }
             if (type == 3) {
                 //TO DO
-                bot.send
+                //bot.send
+                // await bot.sendMessage(chatS, name + ':');
+                await bot.sendDocument(chatS, fileId, { caption: name+": "+caption });
+            }
+            if (type == 4) {
+                // await bot.sendMessage(chatS, name + ':');
+                await bot.sendVideo(chatS, fileId, { caption: name+": "+caption });
+                //bot.forwardMessage(chatS, fromChat, messageId);
             }
         }
     } catch (err) {
@@ -734,6 +794,9 @@ async function sendMessage(chatId,path,  content, type) {
     } finally {
         db.close();
     }
+
+
+
     await axios.post('http://192.168.1.102:3000/message', {
         notice: 0,
         content : content,
@@ -741,9 +804,9 @@ async function sendMessage(chatId,path,  content, type) {
         group_id:group_id,
         student_id:student_id
     }).then(function(res) {
-        // console.log(res);
+        console.log(res);
     }).catch(function(err) {
-        //console.log(err);
+        console.log(err);
     })
 }
 
