@@ -111,12 +111,20 @@ async function connect(){
 
 bot.on('message', async function (msg) {
     const chatId = msg.chat.id;
+    console.log("\n\n");
     console.log(msg);
     const text = msg.text;
     var photo;
     var audio;
     var document;
     var content;
+
+    var fromChat = msg.chat.id;
+    var messageId = msg.message_id;
+    var fileId = null;
+    var caption = msg.caption;
+
+    var video;
     try{
         if (text!=null) {
             content = text;
@@ -126,25 +134,32 @@ bot.on('message', async function (msg) {
     } catch(err) {
        // console.log("Not Text");
     }
-    try {
+
+    if (msg.photo) {
         photo = msg.photo[3]["file_id"];
+        fileId = photo;
          var path = await getPath(photo);
         content = path;
-    } catch (err) {
-        // console.log("Not Photo");
+        console.log("photo")
     }
-    try {
+    if (msg.voice) {
         audio = msg.voice["file_id"];
+        fileId = audio;
+        console.log(audio);
         content = await getPath(audio);
-    } catch (err) {
-        // console.log(err);
-    }
-    try {
+    } 
+    if (msg.document) {
         document = msg.document["file_id"];
+        fileId = document;
         content = await getPath(document);
-    } catch (err) {
-        // console.log(err);
-    }
+        console.log("doc")
+    } 
+    if (msg.video) {
+        video = msg.video["file_id"];
+        console.log("video")
+        fileId = video;
+        content = await getPath(video);
+    } 
     var type;
     if (text!=null) {
         type = 0;
@@ -152,12 +167,16 @@ bot.on('message', async function (msg) {
     if (photo!=null) {
         type = 1;
     }
-    if (audio !=null) {
+    if (audio!=null) {
         type = 2;
     }
     if (document!=null) {
         type = 3;
     }
+    if (video!=null){
+        type = 4;
+    }
+    console.log(type);
     var database = await connect();
     var stream;
     try {
@@ -174,7 +193,7 @@ bot.on('message', async function (msg) {
     if (stream[0][0]["stream"]!=null && stream[0][0]["stream"] ==1) {
         // console.log(content);
 
-        await sendMessage(chatId, content, type);
+        await sendMessage(chatId, content, type, fromChat, messageId, fileId, caption);
         return;
     }
     if (text === "/start" || text === "/update" ||  text === "/test" ||  text === "/request" ||  text === "/exit") {
@@ -551,7 +570,7 @@ async function getMessage(chatId, text, groupId) {
         db.close();
     }
 }
-async function sendMessage(chatId, content, type) {
+async function sendMessage(chatId, content, type, fromChat, messageId, fileId, caption) {
     var student_id = await getId(chatId);
     var group_id = await getGroup(chatId);
 
@@ -562,26 +581,43 @@ async function sendMessage(chatId, content, type) {
         var students = await db.query("SELECT chat_id FROM student WHERE group_id = ? AND chat_id <> ?", [group_id, chatId]);
         for (var i=0;i<students[0].length;i++) {
             var chatS = students[0][i]["chat_id"];
+
+            console.log("send message type: "+type);
+
             if (type == 0) {
                 await bot.sendMessage(chatS, name + ':\n' + content);
             }
             if (type==1) {
                 try {
                     console.log(content);
-                    await bot.sendMessage(chatS, name + ':');
-                    await bot.sendPhoto(chatS, content);
+                    // await bot.sendMessage(chatS, name + ':');
+                    await bot.sendPhoto(chatS, fileId, { caption: name+": "+caption });
                 } catch (err) {
                     console.log(err);
                 }
             }
 
             if (type == 2) {
-                await bot.sendMessage(chatS, name + ':');
-                await bot.sendAudio(chatS, content);
+                console.log("HEREEEEEEEEEE")
+                // await bot.sendMessage(chatS, name + ':');
+                console.log(fileId);
+                try{
+                    await bot.sendVoice(chatS, fileId, { caption: name+": "+caption });
+                } catch (es) {
+                    console.log(es);
+                }
+                
             }
             if (type == 3) {
                 //TO DO
-                bot.send
+                //bot.send
+                // await bot.sendMessage(chatS, name + ':');
+                await bot.sendDocument(chatS, fileId, { caption: name+": "+caption });
+            }
+            if (type == 4) {
+                // await bot.sendMessage(chatS, name + ':');
+                await bot.sendVideo(chatS, fileId, { caption: name+": "+caption });
+                //bot.forwardMessage(chatS, fromChat, messageId);
             }
         }
     } catch (err) {
@@ -589,6 +625,9 @@ async function sendMessage(chatId, content, type) {
     } finally {
         db.close();
     }
+
+
+
     await axios.post('http://192.168.1.102:3000/message', {
         notice: 0,
         content : content,
@@ -1040,6 +1079,6 @@ app.post('/message', async function (req, res) {
         }
     }
 })
-server.listen(port, "192.168.1.159");
+server.listen(port, "192.168.1.121");
 server.on('error', onError);
 server.on('listening', onListening);
