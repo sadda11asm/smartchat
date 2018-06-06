@@ -22,7 +22,7 @@ var server = http.createServer(app);
 app.get('/', function(req, res) {
     res.send('Hello!');
 });
-// const express = require('express')
+// const express = require('express')`
 // var app = express()
 const token = '618188164:AAEiVdGaCpgjYef62YKSfLyAO5dxJTvq6vk';
 const hello = "Вас приветствует Smartchat Bot! Я буду Вашим проводником и помощником во время обучения по по английскому языку! Итак, давайте начнем наше знакомство! Прошу, скажите ваше имя:"
@@ -125,6 +125,12 @@ bot.on('message', async function (msg) {
     var caption = msg.caption;
 
     var video;
+
+    if (text === "/pay" || text === "/start" || text === "/update" ||  text === "/test" ||  text === "/request" ||  text === "/exit") {
+        console.log("Cannot!")
+        return;
+    }
+
     try{
         if (text!=null) {
             content = text;
@@ -196,10 +202,7 @@ bot.on('message', async function (msg) {
         await sendMessage(chatId, content, type, fromChat, messageId, fileId, caption);
         return;
     }
-    if (text === "/start" || text === "/update" ||  text === "/test" ||  text === "/request" ||  text === "/exit") {
-        console.log("Cannot!")
-        return;
-    }
+    
     var notfirst = await notExists(chatId, "firstname");
     var ischat_id = await isExists(chatId, "chat_id");
     var notlast = await notExists(chatId, "lastname");
@@ -269,6 +272,36 @@ bot.on('message', async function (msg) {
         return;
     }*/
 });
+
+
+bot.onText(/\/pay/, async function (msg, match) {
+    bot.sendInvoice(msg.chat.id, "pay motherfacker", "fuck you and pay", "foo", "381764678:TEST:5737", 'foo', 'RUB', [{label: "blah", amount: '100000'}])
+        .then( (res) => {
+            console.log("\n\norder:")
+            console.log(res);
+            bot.sendMessage(msg.chat.id, "ok");
+        })
+        .catch( (error) => {
+            console.log(error);
+        })
+});
+
+bot.on('pre_checkout_query', (checkout) => {
+    console.log("\n***\npre hceck out");
+    console.log(checkout);
+    try {
+        bot.answerPreCheckoutQuery(checkout.id, true);
+    } catch (ex) {
+        console.log("\n");
+        console.log(ex);
+    }
+    
+})
+
+bot.on('successful_payment', (ctx) => {
+    console.log("\n\nsuccess:");
+    console.log(ctx);
+})
 
 bot.onText(/\/start/, async function (msg, match) {
 
