@@ -4,8 +4,7 @@ const axios = require("axios");
 const http = require("http");
 const cron = require('cron');
 var fs = require('fs');
-
-var web_port = '192.168.1.150'
+const web_port = "192.168.1.125"
 var debug = require('debug')('smart_telegram_bot:server');
 var express = require('express');
 
@@ -558,17 +557,31 @@ bot.onText(/\/delete/, async function(msg, match) {
         bot.sendMessage(chatId, "Пожалуйста для начала пройдите регистрацию по /start!");
         return;       
     }
-    // await axios.post('http://192.168.1.102:3000/message', {
-    //             notice: 1,
-    //             student_id: student_id
-    //         }).then(function(res) {
-    //             //console.log(res);
-    //         }).catch(function(err) {
-    //             console.log(err);
-    //         })
+    var db = await connect();
+    try {
+        var info = await db.query('SELECT student_id FROM student where chat_id = ?', [chatId])
+        var student_id = info[0][0]["student_id"];
+        var data = await db.query('SELECT teacher_id FROM req where student_id = ?', [student_id]);
+        var teacher_id = data[0][0]["teacher_id"];
+    } catch (err) {
+        // console.log(err);
+        await bot.sendMessage(chatId, "У вас нету действующей заявки!")
+        return;
+    } finally {
+        db.close();
+    }
+    await axios.post('http://'+web_port+':3000/message', {
+                notice: 3,
+                student_id: student_id,
+                teacher_id: teacher_id
+            }).then(function(res) {
+                console.log(res);
+            }).catch(function(err) {
+                console.log(err);
+            })
     await deleteRequests(chatId);
     requests[chatId]={}
-    bot.sendMessage(chatId, "Ваша заявка удалена! Можете отправить новую заявку по /request!")
+    await bot.sendMessage(chatId, "Ваша заявка удалена! Можете отправить новую заявку по /request!")
 
 
 
@@ -678,13 +691,13 @@ async function sendNotice(chatId) {
     var student_id = info[0][0]["student_id"];
     if (requests[chatId]!=null && requests[chatId]["lessons"]!=null) {
         console.log("deeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
-        await axios.post(web_port + ':3000/message', {
+        await axios.post('http://' + web_port + ':3000/message', {
                 notice: 1,
                 student_id: student_id
             }).then(function(res) {
-                //console.log(res);
+                console.log(res);
             }).catch(function(err) {
-                // console.log(err);
+                console.log(err);
             })
         await bot.sendMessage(chatId,"Чтобы удалить заявку перейдите по /delete. Когда один из преподавателей добавит вас в свою группу мы Вам дадим знать!");
     } else {
@@ -762,6 +775,7 @@ async function proposeTeacher(chatId, req) {
         console.log(err);
     }
     db.close();
+    // console.log("teachers", teachers);
     return teachers;
 }
 
@@ -809,7 +823,7 @@ async function deleteGroup(chatId) {
 }
 
 async function sendNotification(studentId, groupId, groupName, teacherId, deleted) {
-    await axios.post(web_port + ':3000/message', {
+    await axios.post('http://' + web_port + ':3000/message', {
         notice: 2,
         student_id: studentId,
         deleted : deleted,
@@ -938,7 +952,7 @@ async function sendMessage(chatId, content, type, fromChat, messageId, fileId, c
 
 
 
-    await axios.post(web_port + ':3000/message', {
+    await axios.post('http://' + web_port + ':3000/message', {
         notice: 0,
         content : content,
         type: type,
