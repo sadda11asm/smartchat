@@ -61,7 +61,7 @@ var requests = {
     //}
 };
 
-var freerequests = {
+var freeLessons = {
     //chat_id: {
     //  group_type:fdsds;
         //queries:[{}]    
@@ -129,6 +129,10 @@ const begin = {
         one_time_keyboard: true,
     },
 };
+
+const chosen = {
+    //chatId: teacherId;
+}
 async function connect(){
     let con = await mysql.createConnection({
         host: web_port,
@@ -179,7 +183,17 @@ bot.onText(/\/editable/, function onEditableText(msg) {
     };
     var chatId = opts.chat_id;
     let text;
-    if (action>='0' && action <='9') {
+    if (action>='1' && action <='9') {
+        if (action=='1') {
+            if (freeLessons[chatId]!=null && freeLessons[chatId]==3) {
+                await bot.sendMesssage(chatId, "Вы уже использовали свои возможности на бесплатный урок! Теперь вам только открыты остальные 8 тарифов (/info). Подайте заявку заново по /request");
+                return;
+            }
+            if(chosen[chatId]!=null) {
+                await bot.sendMessage(chatId, "Вы уже выбрали преподавателя после бесплатного урока! Выберете другой тариф пожалуйста");
+                return;
+            }
+        }
         bodyRequest(opts.chat_id, action);
         requests[opts.chat_id]["rate_id"] = action; 
         // console.log("ENTERED 2");
@@ -193,6 +207,11 @@ bot.onText(/\/editable/, function onEditableText(msg) {
         var rate_id = requests[chatId]["rate_id"];
         if (action == 'next') {
             await sendRequest(opts.chat_id, i+1);
+            var studInfo = await db.query("SELECT lvl, student_id FROM student where chat_id = ?", [chatId]);
+            var info = await db.query("SELECT login FROM teacher where teacher_id = ?", [teachers[i]["teacher_id"]]);
+            // console.log(teachers[i]["teacher_id"]);
+            var login = info[0][0]["login"];
+            bot.editMessageText("Вы пропустили преподавателя с ником " + login + '!', opts);
             return;
         } else if (action== 'yes'){
             var studInfo = await db.query("SELECT lvl, student_id FROM student where chat_id = ?", [chatId]);
@@ -218,7 +237,7 @@ bot.onText(/\/editable/, function onEditableText(msg) {
 bot.on('message', async function (msg) {
     const chatId = msg.chat.id;
     // console.log("\n\n");
-    // console.log(msg);
+    console.log(msg);
     const text = msg.text;
     var photo;
     var audio;
@@ -352,8 +371,8 @@ bot.on('message', async function (msg) {
         insert(chatId, "phone", phone);
         var text1 =  "Спасибо! Теперь нужно определить ваш уровень английского языка если вы его не знаете. Знаете ли вы свой уровень английского языка?"
         bot.sendMessage(chatId,text1, lvlans).then(() => {
-            bot.once('message', (answer) => {
-               //Code never executed when there are lots of people       
+            answerCallbacks[chatId] = async function(answer) {
+                //Code never executed when there are lots of people       
                var res = answer.text;
                      if (res == "No"){
                          var text2 = "Тогда давайте пройдем тест! Как будете готовы, отправьте /test и приготовьтесь к ответу на 30 вопросов! Будет дан только 1 шанс, так что уделите на это должное количество времени! Удачи!"
@@ -361,21 +380,21 @@ bot.on('message', async function (msg) {
                         return;
                       }else if (res == "Yes"){
                             bot.sendMessage(chatId, "Выберите из списка:", lvldetect).then(() => {
-                                bot.once('message', (ans) => {
-                                    var res = ans.text;
-                                        if (res=="Beginner") insert(chatId, "lvl", 1);
-                                        if (res=="Elementary") insert(chatId, "lvl", 2);
-                                        if (res=="Pre-Intermediate") insert(chatId, "lvl", 3);
-                                        if (res=="Intermediate") insert(chatId, "lvl", 4);
-                                        if (res=="Upper-Intermediate") insert(chatId, "lvl", 5); 
-                                        if (res=="Advanced") insert(chatId, "lvl", 6);
-                                        if (res=="Mastery") insert(chatId, "lvl", 7);
-                                    bot.sendMessage(chatId, "Отлично! Ваш уровень записан успешно! Узнайте наши тарифы по /info и отправьте заявку для записи на бесплатное/групповое/индивидуальное занятие  с помощью /request. Ввм нужно будет заполнить удобные для вас дни и время! ")
+                                answerCallbacks[chatId] = async function(ans) {
+                                    var res2 = ans.text;
+                                        if (res2=="Beginner") insert(chatId, "lvl", 1);
+                                        if (res2=="Elementary") insert(chatId, "lvl", 2);
+                                        if (res2=="Pre-Intermediate") insert(chatId, "lvl", 3);
+                                        if (res2=="Intermediate") insert(chatId, "lvl", 4);
+                                        if (res2=="Upper-Intermediate") insert(chatId, "lvl", 5); 
+                                        if (res2=="Advanced") insert(chatId, "lvl", 6);
+                                        if (res2=="Mastery") insert(chatId, "lvl", 7);
+                                    await bot.sendMessage(chatId, "Отлично! Ваш уровень записан успешно! Узнайте наши тарифы по /info и отправьте заявку для записи на бесплатное/групповое/индивидуальное занятие  с помощью /request. Ввм нужно будет заполнить удобные для вас дни и время! ")
                                     test[chatId]=true;
-                                });
+                                };
                             })
                       }
-             });
+            };
        });
         return;
     }
@@ -391,7 +410,20 @@ bot.on('message', async function (msg) {
 
 
 bot.onText(/\/pay/, async function (msg, match) {
-    bot.sendInvoice(msg.chat.id, "Title", "Description", "foo", "381764678:TEST:5737", 'foo', 'RUB', [{label: "Lessons", amount: '10000'}])
+    var chatId = msg.chat.id;
+    var check =  await notExists(msg.chat.id, "group_id");
+    if (check) {
+        await bot.sendMessage(chatId, "Для начала подайте заявку на занятия по /request");
+        return;
+    }
+    var db = await connect();
+    var group = await db.query("SELECT group_id FROM student where chat_id = ?", [chatId]);
+    var rate = await db.query('SELECT rate_id FROM gr WHERE group_id = ?', [group[0][0]["group_id"]]);
+    var amount = await db.query('SELECT rate_cost, rate_name, rate_title FROM rate WHERE rate_id = ?', [rate[0][0]["rate_id"]]);
+    var cost = amount[0][0]["rate_cost"]*100;
+    var name = amount[0][0]["rate_name"];
+    var title = amount[0][0]["rate_title"];
+    bot.sendInvoice(msg.chat.id, "Оплата за курс", title , "foo", "381764678:TEST:5737", 'foo', 'RUB', [{label: name , amount: cost}])
         .then( (res) => {
             console.log("\n\norder:")
             console.log(res);
@@ -414,7 +446,14 @@ bot.on('pre_checkout_query', (checkout) => {
     
 })
 
-bot.on('successful_payment', (ctx) => {
+bot.on('successful_payment', async function (ctx) {
+    var chatId = ctx.chat.id;
+    await bot.sendMessage(chatId, "Вы успешно оплатили ваши курсы! Доступ к уроку будет успешно открыт! Спасибо за оплату!");
+    var db = await connect();
+    var group = await db.query("SELECT group_id FROM student where chat_id = ?", [chatId]);
+    var rate = await db.query('SELECT rate_id FROM gr WHERE group_id = ?', [group[0][0]["group_id"]]);
+    var lessons = await db.query('SELECT lessons FROM rate WHERE rate_id = ?', [rate[0][0]["rate_id"]]);
+    var data = await db.query("UPDATE student SET nles = ? WHERE chat_id = ?", [lessons[0][0]["lessons"], chatId]); 
     console.log("\n\nsuccess:");
     console.log(ctx);
 })
@@ -520,6 +559,11 @@ bot.onText(/\/test/, async function (msg, match) {
         bot.sendMessage(chatId, "Пожалуйста для начала пройдите регистрацию по /start!");
         return;
     }
+    check = await isExists(chatId, "group_id");
+    // if (check) {
+    //     await bot.sendMessage(chatId, "Вы уже состоите в группе и не можете сменить уровень!");
+    //     return;
+    // }
     if (test[chatId]!= null && test[chatId]==true) {
         bot.sendMessage(chatId, "Ваш уровень уже определен! Вы не можете повторно пройти уровневый тест!");
         return;
@@ -598,10 +642,10 @@ bot.onText(/\/update/, async function(msg, match) {
             if (res=="Номер") item = "phone"
             if (res=="Имейл") item = "email"
             bot.sendMessage(chatId, "Введите новое значение:").then (async function () {
-                bot.once('message', async function (answer2) {
+                answerCallbacks[chatId] = async function(answer2) {
                     var res2 = answer2.text;
                     await updateInfo(chatId,item, res2);
-                })
+                }
             })
         }
     })
@@ -652,7 +696,7 @@ async function bodyRequest(chatId, action) {
     }
     var payload = await bot.sendMessage(chatId, "Теперь введите пожалуйста все дни и все удобные промежутки времени когда Вам будет удобно заниматься, в следующем формате: \nПонедельник 18:00-20:00\nПонедельник 13:00-17:00\nВоскресенье 14:00-18:00 и т.д.\nЗаметьте, начало и конец промежутка времени только целое значение часов (формат 18:30 не разрешается). Требуется ответить на это сообщение с помощью Ответить.", opts);
     answerCallbacks[chatId] = async function(answer) {
-        var feedback="Вы добавили следующие слоты удобоных для вас занятий:\n"
+        var feedback="Вы добавили следующие слоты удобных для вас занятий:\n"
         var res = answer.text;
         var arr = res.split("\n");
         var responses = [];
@@ -750,14 +794,33 @@ async function proposeTeacher(chatId, req) {
             var left = req[ind]["start_time"];
             var right = req[ind]["finish_time"];
             var day = req[ind]["nday"];
-            
-            var info = await db.query("SELECT teacher_id,nday, start_time, finish_time FROM graph WHERE teacher_id >0", [teacherId]);
+            var info;
+            if (chosen[chatId]!=null) {
+                info = await db.query("SELECT teacher_id,nday, start_time, finish_time FROM graph WHERE teacher_id = ?", [chosen[chatId]]);
+                var obj = {};
+                var start = info[0][0]["start_time"];
+                var finish = info[0][0]["finish_time"];
+                var teacherId = chosen[chatId];
+                obj["teacher_id"] = teacherId;
+                obj["start_time"] = Math.max(start, left);
+                obj["finish_time"] = Math.min(right, finish);
+                obj["nday"] = day;
+                teachers.push(obj);
+                return teachers;
+            }
+            info = await db.query("SELECT teacher_id,nday, start_time, finish_time FROM graph WHERE teacher_id >0");
             for (var j = 0;j<info[0].length;j++) {
                 var nday = info[0][j]["nday"];
                 if (nday==day) {
                     var start = info[0][j]["start_time"];
                     var finish = info[0][j]["finish_time"];
                     if (start>=right || finish<=left) {
+                        // var teacherId = info[0][j]["teacher_id"];
+                        // for(var i = 0; i < teachers.length; i++) {
+                        //     if (teachers[i].teacher_id == teacherId) {
+                                
+                        //     }
+                        // }
                         continue;
                     } else {
                         var de = {}
@@ -766,7 +829,25 @@ async function proposeTeacher(chatId, req) {
                         de["start_time"] = Math.max(start, left);
                         de["finish_time"] = Math.min(right, finish);
                         de["nday"] = day;
-                        teachers.push(de);
+                        var found = false;
+                        for(var i = 0; i < teachers.length; i++) {
+                            if (teachers[i].teacher_id == teacherId) {
+                                found = true;
+                                break;
+                            }
+                        }
+                        if (requests[chatId]["rate_id"]==1) {
+                            var past = await db.query("SELECT free_id FROM free where chat_id = ? AND teacher_id = ?", [chatId, teacherId]);
+                            // for (var k = 0;k<past[0].length;k++) {
+                            //     if (teachers.includes(past[0][k])) {
+                            //         delete teachers
+                            //     }
+                            // }
+                            if (past[0].length>0) {
+                                continue;
+                            }
+                        }
+                        if (!found) teachers.push(de);
                     }
                 }
             }
@@ -874,8 +955,11 @@ async function getMessage(notice, chatId, text, groupId) {
     if (notice==3) {
         return;
     }
-    var chart = "Расписание занятий:\n"
     var db = await connect();
+    var teacher = await db.query('SELECT teacher_id FROM gr where group_id = ?', [groupId]);
+    var teacherId = teacher[0][0]["teacher_id"];
+    //await db.query('INSERT INTO free (chat_id, teacher_id) VALUES (?,?)', [chatId, teacherId]);
+    var chart = "Расписание занятий:\n"
     try {
         var data = await db.query("SELECT * FROM chart where group_id = ? ORDER BY day", groupId);
         for (var i = 0;i<data[0].length;i++) {
@@ -888,6 +972,13 @@ async function getMessage(notice, chatId, text, groupId) {
         chart+="\nРежим чата будет открыт ровно в момент начала урока! Все ваши сообщения будут отправлены преподавателю и всем членам группы (если занятие групповое)";
         //console.log(data);
         bot.sendMessage(chatId, chart);
+        var is = await db.query("SELECT rate_id FROM gr WHERE group_id = ?", [groupId]);
+        var rate_id = is[0][0]["rate_id"];
+        if (rate_id!=1) {
+            await bot.sendMessage(chatId, "Также напоминаем что вам нужно будет оплатить занятия через /pay до начала 1го урока иначе доступ к уроку будет закрыт!");
+        } else {
+            await db.query("INSERT INTO free (chat_id, teacher_id) VALUES (?,?)", [chatId, teacherId]);
+        }
     } catch (err) {
         console.log(err);
     } finally {
@@ -1290,8 +1381,10 @@ async function isAudioExists(i) {
 
 async function setAva(chatId) {
     var user_profile = await bot.getUserProfilePhotos(chatId).then (async function(res) {
-        var photo_id = res.photos[0][0].file_id;
+        console.log(res.photos);
+        var photo_id = res.photos[0][res.photos.length-1].file_id;
         var photo = await bot.getFile(photo_id).then( async function (result) {
+            console.log(result)
             var db = await connect();
             var file_path = result.file_path;
             var photo_url = `https://api.telegram.org/file/bot${token}/${file_path}`
@@ -1306,6 +1399,51 @@ async function setAva(chatId) {
 
     });
 
+}
+
+async function getFeedback(chatId, groupId) {
+    var db = await connect();
+    var info = await db.query("SELECT nles FROM student WHERE chat_id = ?",[chatId]);
+    if (info[0][0]["nles"]!=0) {
+        return;
+    }
+    var data = await db.query('SELECT rate_id from gr WHERE group_id = ?', [groupId]);
+    var rateId = data[0][0]["rate_id"];
+    if (rateId==1) {
+        if (freeLessons[chatId]==null) freeLessons[chatId]=0;
+        await bot.sendMessage(chatId, "Вы только что закончили бесплатный урок с преподавателем! Хотите ли вы продолжить обучение с данным преподавателем?", lvlans).then(() => {
+            answerCallbacks[chatId] = async function(answer) {
+                var res = answer.text;
+                if (res == 'No') {
+                    var txt = "";
+                    if (freeLessons[chatId]==3) {
+                        txt="У вас больше нету возможности пройти бесплатный урок. Вы уже прошли 3 бесплатных урока,"
+                    } else {
+                        freeLessons[chatId]++;
+                        txt = "У вас будет возможность еще на " + (3-freeLessons[chatId]) + " пробных уроков,"
+                    }
+                    await bot.sendMessage(chatId, "В таком случае подайте заявку заново. " + txt+ " для этого подайте заявку по /request.");
+                    db.query('UPDATE student SET nles = 1 WHERE chat_id = ?', [chatId]);
+                } else {
+                    //should take teacher id
+                    var teacher = await db.query('SELECT teacher_id, free_id from free where chat_id = ?', [chatId]);
+                    var max = 0;
+                    var teacherId;
+                    for (var i =0;i<teacher[0].length;i++) {
+                        if (teacher[0][i]["free_id"]>max) {
+                            max = teacher[0][i]["free_id"];
+                            teacherId = teacher[0][i]["teacher_id"];
+                        }
+                    }
+                    chosen[chatId] = teacherId;
+                    await bot.sendMessage(chatId, tariffs, lesson);
+                }
+            }
+        })
+
+    } else {
+
+    }
 }
 
 
@@ -1392,6 +1530,7 @@ app.post('/message', async function (req, res) {
                 for (var i=0;i<chats.length;i++) {
                     console.log(chats[i]["chat_id"], req.body.text);
                     await bot.sendMessage(chats[i]["chat_id"], req.body.text);
+                    await getFeedback(chats[i]["chat_id"], req.body.group_id);
                 }
                 // await bot.sendMessage(chatId, text);
             } catch(err) {
@@ -1422,6 +1561,7 @@ app.post('/message', async function (req, res) {
                         await bot.sendAudio(students[0][i]["chat_id"], content);
                     } else if (type ==3) {
                         ///TO DO
+                        await bot.sendDocument(students[0][i]["chat_id"], content);
                     }
                 }
             } catch (err) {
