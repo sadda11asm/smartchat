@@ -4,7 +4,7 @@ const axios = require("axios");
 const http = require("http");
 const cron = require('cron');
 var fs = require('fs');
-const web_port = <port>
+const web_port = "cabinet.smartchat.kz"
 var debug = require('debug')('smart_telegram_bot:server');
 var express = require('express');
 
@@ -18,8 +18,9 @@ app.use(bodyParser.json());
 app.use('/photos', express.static('./photos'))
 app.use('/audios',express.static('./audios')) 
 
+
   
-var port = normalizePort(process.env.PORT || <port>);
+var port = <port1>;
 app.set('port', port);
 
 var server = http.createServer(app);
@@ -37,8 +38,24 @@ const token = <token>;
 //     res.sendStatus(200);
 //   });
 
-const hello = "Вас приветствует Smartchat Bot! Я буду Вашим проводником и помощником во время обучения по по английскому языку! Итак, давайте начнем наше знакомство! Прошу, скажите ваше имя:"
-const bot = new TelegramBot(token, {polling:true});
+const hello = "Hi! My name is Smarty. I am robot. I will help you to study English. So, let's start!\n Привет! Мое имя Смарти. Я робот.  Я помогу вам изучить английский язык. Итак, давайте начнем наше знакомство!"
+var options = {
+  webHook: {
+    port: <port2>,
+    }
+};
+
+var bot = new TelegramBot(token, options);
+
+const commands = {
+    parse_mode: "Markdown",
+    reply_markup: {
+        keyboard: [[{text: '/info'},{text: '/classes'}, {text: '/question'}],[{text: '/request'}, {text: '/start'},{text: '/pay'}],[{text: '/test'},{text: '/delete'}, {text: '/update'}, {text: '/exit'}]]
+        // force_reply: true
+        // resize_keyboard: true,
+        // one_time_keyboard: true,
+    }
+}
 //     , {
 //     webHook: {
 //       port: 443,
@@ -49,8 +66,9 @@ const bot = new TelegramBot(token, {polling:true});
 // );
 
 // bot.openWebHook();
-// bot.setWebHook(`https://be0074ff.ngrok.io/bot${token}`
-// , {    certificate: './crt.pem'} // Path to your crt.pem}
+// bot.setWebHook(`https://cabinet.smartchat.kz/wh/${token}`);
+//    certificate: './fullchain.pem' 
+// } // Path to your crt.pem}
 // );
 // var port = normalizePort(process.env.PORT || '8080');
 // app.set('port', port);
@@ -103,6 +121,15 @@ const update = {
         one_time_keyboard: true,
     },
 };
+
+const agechoice = {
+    parse_mode: "Markdown",
+    reply_markup: {
+        keyboard: [["10-17 лет"], ["18 лет или больше"]],
+        resize_keyboard: true,
+        one_time_keyboard: true,
+    },
+}; 
 const lvlans = {
     parse_mode: "Markdown",
     reply_markup: {
@@ -315,13 +342,13 @@ async function connect(){
         host: "localhost",
         //user:"finley",
         //password:"password",
-        user:'anvar',
-        password: 'Anvar2018',
-        port:3306,
+        user:<user>,
+        password: <password>,
+        port:<port>,
         // host:'localhost',
         // user:"root",
         // password: "12345",
-        database:"smartchat",
+        database:<database>,
         insecureAuth: true
     });
     return con;
@@ -353,7 +380,7 @@ bot.on('callback_query', async function onCallbackQuery(callbackQuery) {
                 await bot.sendMessage(chatId, "Выберите конец промежутка: ", timeopts[0]).then(() => {
                     answerCallbacks[chatId] = async function(answer2) {
                         var res2 = answer2.text;
-                        console.log(weekdays[chatId][requests[chatId]["weekday"]]);
+                        console.log("DAY AM",weekdays[chatId][requests[chatId]["weekday"]]);
                         var response = await getRequest(chatId, weekdays[chatId][requests[chatId]["weekday"]], res, res2, requests[chatId]["group_type"], free);
                         if (response=='error') {
                             await bot.sendMessage(chatId, "Период введен неправильно! Введите заново: период для " + await russianday(weekdays[chatId][requests[chatId]["weekday"]]) + ": ",periodopts);
@@ -365,7 +392,7 @@ bot.on('callback_query', async function onCallbackQuery(callbackQuery) {
                         responses[chatId].push(response);
                         requests[chatId]["weekday"]++;
                         if (requests[chatId]["weekday"]==weekdays[chatId].length) {
-                            console.log(responses);
+                            console.log("responsesss: " + responses);
                             await bot.sendMessage(chatId, "На основании вашего желанного времени занятий вам подобраны преподаватели по режиму работы.");
                             var teachers = await proposeTeacher(chatId, responses[chatId]);
                             requests[chatId]["teachers"] = teachers;
@@ -378,7 +405,7 @@ bot.on('callback_query', async function onCallbackQuery(callbackQuery) {
                 })
             }
         });
-        await db.close();
+        await db.end();
         return;
     }
     if (action == 'pm') {
@@ -389,7 +416,8 @@ bot.on('callback_query', async function onCallbackQuery(callbackQuery) {
                 await bot.sendMessage(chatId, "Выберите конец промежутка: ", timeopts[1]).then(() => {
                     answerCallbacks[chatId] = async function(answer2) {
                         var res2 = answer2.text;
-                        var response = await  getRequest(chatId, weekdays[chatId][requests[chatId]["weekday"]], res, res2, requests[chatId]["group_type"], free);
+                        console.log("DAY PM", weekdays[chatId][requests[chatId]["weekday"]])
+                        var response = await getRequest(chatId, weekdays[chatId][requests[chatId]["weekday"]], res, res2, requests[chatId]["group_type"], free);
                         if (response=='error') {
                             await bot.sendMessage(chatId, "Период введен неправильно! Введите заново: период для " + await russianday(weekdays[chatId][requests[chatId]["weekday"]]) + ": ",periodopts);
                             return;
@@ -400,9 +428,9 @@ bot.on('callback_query', async function onCallbackQuery(callbackQuery) {
                         responses[chatId].push(response);
                         requests[chatId]["weekday"]++;
                         if (requests[chatId]["weekday"]==weekdays[chatId].length) {
-                            console.log(responses);
+                            console.log("responsesss: " + responses);
                             await bot.sendMessage(chatId, "На основании вашего желанного времени занятий вам подобраны преподаватели по режиму работы.");
-                            var teachers = await proposeTeacher(chatId, responses);
+                            var teachers = await proposeTeacher(chatId, responses[chatId]);
                             requests[chatId]["teachers"] = teachers;
                             await sendRequest(chatId, 0);
                             return;
@@ -413,7 +441,7 @@ bot.on('callback_query', async function onCallbackQuery(callbackQuery) {
                 })
             }
         });
-        await db.close();
+        await db.end();
         return;
     }
     if (action == 'night') {
@@ -424,6 +452,7 @@ bot.on('callback_query', async function onCallbackQuery(callbackQuery) {
                 await bot.sendMessage(chatId, "Выберите конец промежутка: ", timeopts[2]).then(() => {
                     answerCallbacks[chatId] = async function(answer2) {
                         var res2 = answer2.text;
+                        console.log("DAY NIGHT", weekdays[chatId][requests[chatId]["weekday"]])
                         var response = await  getRequest(chatId, weekdays[chatId][requests[chatId]["weekday"]], res, res2, requests[chatId]["group_type"], free);
                         if (response=='error') {
                             await bot.sendMessage(chatId, "Период введен неправильно! Введите заново: период для " + await russianday(weekdays[chatId][requests[chatId]["weekday"]]) + ": ",periodopts);
@@ -435,7 +464,7 @@ bot.on('callback_query', async function onCallbackQuery(callbackQuery) {
                         responses[chatId].push(response);
                         requests[chatId]["weekday"]++;
                         if (requests[chatId]["weekday"]==weekdays[chatId].length) {
-                            console.log(responses);
+                            console.log("responsesss: " + responses[chatId]);
                             await bot.sendMessage(chatId, "На основании вашего желанного времени занятий вам будут подобраны преподаватели по режиму работы.");
                             var teachers = await proposeTeacher(chatId, responses[chatId]);
                             requests[chatId]["teachers"] = teachers;
@@ -448,7 +477,7 @@ bot.on('callback_query', async function onCallbackQuery(callbackQuery) {
                 })
             }
         });
-        await db.close();
+        await db.end();
         return;
     }
     var str = "Выбранные дни: ";
@@ -477,7 +506,7 @@ bot.on('callback_query', async function onCallbackQuery(callbackQuery) {
                     // one_time_keyboard: true,
                 }
             });
-            await db.close();
+            await db.end();
             return;
         } 
         await bot.editMessageText(str, opts);
@@ -485,7 +514,7 @@ bot.on('callback_query', async function onCallbackQuery(callbackQuery) {
         requests[chatId]["weekday"] = 0;
         var rday = await russianday(weekdays[chatId][0])
         await bot.sendMessage(chatId, "Период для " + rday + ": ",periodopts);
-        await db.close();
+        await db.end();
         return;
     }
     if (days.includes(action)) {
@@ -500,7 +529,7 @@ bot.on('callback_query', async function onCallbackQuery(callbackQuery) {
                     // one_time_keyboard: true,
                 }
             });
-            await db.close();
+            await db.end();
             return;
         } else {
             weekdays[chatId].push(action);
@@ -518,34 +547,38 @@ bot.on('callback_query', async function onCallbackQuery(callbackQuery) {
             }
         });
         // bodyRequest(opts.chat_id, );
-        await db.close();
+        await db.end();
         return;
     }
     if (action>='1' && action <='9') {
         if (requests[chatId]!=null && requests[chatId]["rate_id"]!=null) {
-            await db.close();
+            await db.end();
             return;
         }
         // console.log(action);
         if (action=='1') {
             if (freeLessons[chatId]!=null && freeLessons[chatId]==3) {
-                await bot.sendMesssage(chatId, "Вы уже использовали свои возможности на бесплатный урок! Теперь вам только открыты остальные 8 тарифов (/info). Подайте заявку заново по /request");
-                await db.close();
+                await bot.sendMesssage(chatId, "Вы уже использовали свои возможности на бесплатный урок! Теперь вам только открыты остальные 8 тарифов (/info). Подайте заявку заново по /request", commands);
+                await db.end();
                 return;
             }
             if(chosen[chatId]!=null) {
                 await bot.sendMessage(chatId, "Вы уже выбрали преподавателя после бесплатного урока! Выберете другой тариф пожалуйста");
-                await db.close();
+                await db.end();
                 return;
             }
         }
         if (requests[chatId] == null) requests[chatId]={};
         requests[chatId]["rate_id"] = action; 
         console.log(action);
-        await bot.sendMessage(chatId, "Вы выбрали Тариф " + action + '!');
+        if (action == '1') {
+            await bot.sendMessage(chatId, "Вы выбрали бесплатный урок!");
+        } else {
+            await bot.sendMessage(chatId, "Вы выбрали Тариф " + (parseInt(action)-1) + '!');
+        }
         await bodyRequest(opts.chat_id, action);
         // await console.log("ENTERED 2", requests[chatId]);
-        await db.close();
+        await db.end();
         return;
     }
     if (requests[opts.chat_id]["teacher"]!=null && requests[opts.chat_id]["teachers"]!=null) {
@@ -587,7 +620,7 @@ bot.on('callback_query', async function onCallbackQuery(callbackQuery) {
             await bot.sendMessage(opts.chat_id, "Неправильный ввод! Повторите заявку по /request");
         }
     }
-    await db.close();
+    await db.end();
     // bot.sendMessage(opts.chat_id, text);
   });
   
@@ -686,7 +719,7 @@ bot.on('message', async function (msg) {
     } catch (err) {
         // console.log  (err);
     } finally {
-        database.close();
+        database.end();
     }
     //console.log(stream + " sdfdsf");
     if (stream[0][0]["stream"]!=null && stream[0][0]["stream"] ==1) {
@@ -709,51 +742,48 @@ bot.on('message', async function (msg) {
     if (notfirst && ischat_id) {
         var firstname = msg.text
         insert(chatId, "firstname", firstname);
-        bot.sendMessage(chatId, "Теперь, можно узнать вашу фамилию?");
+        bot.sendMessage(chatId, "Приятно познакомиться, " + firstname + "! Теперь, можно узнать вашу фамилию?");
         return;
     }
     if (notlast && !notfirst) {
         var lastname = msg.text
         insert(chatId, "lastname", lastname);
-        bot.sendMessage(chatId, "Можете теперь отправить ваш имейл?");
+        bot.sendMessage(chatId, "Теперь отправитьте пожайлуйста ваш имейл:");
         return;
     }
     if (notemail && !notlast) {
         var email = msg.text
         insert(chatId, "email", email);
-        bot.sendMessage(chatId, "Можете теперь отправить ваш номер?");
+        bot.sendMessage(chatId, "Пожалуйста, напишите свой номер телефона, чтобы мы могли вам перезвонить.");
         return;
     }
     if (notphone && !notemail) {
         var phone = msg.text
         insert(chatId, "phone", phone);
-        var text1 =  "Спасибо! Теперь нужно определить ваш уровень английского языка если вы его не знаете. Знаете ли вы свой уровень английского языка?"
-        bot.sendMessage(chatId,text1, lvlans).then(() => {
+        await bot.sendMessage(chatId, "Спасибо!");
+        await bot.sendMessage(chatId, "Давайте проверим Ваш уровень английского.")
+        await bot.sendMessage(chatId, 'Я проведу сейчас письменный тест. Позже вы пройдете тест с преподавателем во время пробного урока!');
+        var text1 = "Для того чтобы начать тест, скажите сколько вам лет."
+        bot.sendMessage(chatId,text1, agechoice).then(() => {
             answerCallbacks[chatId] = async function(answer) {
                 //Code never executed when there are lots of people       
-               var res = answer.text;
-                     if (res == "No"){
-                         var text2 = "Тогда давайте пройдем тест! Как будете готовы, отправьте /test и приготовьтесь к ответу на 30 вопросов! Будет дан только 1 шанс, так что уделите на это должное количество времени! Удачи!"
-                        bot.sendMessage(chatId, text2) 
-                        return;
-                      }else if (res == "Yes"){
-                            bot.sendMessage(chatId, "Выберите из списка:", lvldetect).then(() => {
-                                answerCallbacks[chatId] = async function(ans) {
-                                    var res2 = ans.text;
-                                        if (res2=="Beginner") insert(chatId, "lvl", 1);
-                                        if (res2=="Elementary") insert(chatId, "lvl", 2);
-                                        if (res2=="Pre-Intermediate") insert(chatId, "lvl", 3);
-                                        if (res2=="Intermediate") insert(chatId, "lvl", 4);
-                                        if (res2=="Upper-Intermediate") insert(chatId, "lvl", 5); 
-                                        if (res2=="Advanced") insert(chatId, "lvl", 6);
-                                        if (res2=="Mastery") insert(chatId, "lvl", 7);
-                                    await bot.sendMessage(chatId, "Отлично! Ваш уровень записан успешно! Узнайте наши тарифы по /info и отправьте заявку для записи на бесплатное/групповое/индивидуальное занятие  с помощью /request. Ввм нужно будет заполнить удобные для вас дни и время! ")
-                                    test[chatId]=true;
-                                };
-                            })
-                      }
+                var res = answer.text;
+                var age=0, text2;
+                // text2 = "Я задам вам 10 легких вопросов. Если дадите более 5 правильных ответов, перейдете на следующий уровень. И так далее. Пройдите по /test для начала теста.";    
+                if (res == "10-17 лет"){
+                    age = 0;
+                    await bot.sendMessage(chatId, "Спасибо, теперь пройдите по /test чтобы начать тест!", commands) 
+                }else if (res == "18 лет или больше"){
+                    age = 1;
+                    await bot.sendMessage(chatId, "Спасибо, теперь пройдите по /test чтобы начать тест!", commands) 
+                } else {
+                    await bot.sendMessage(chatId, "Вы не определили свой возраст! Пока у вас стоит возраст 10-17 лет. Для изменения пройдите по /update и затем по /test", commands);
+                }
+                database = await connect();
+                await database.query("UPDATE student SET age = ? WHERE chat_id = ?", [age, chatId]);
+                await database.end();
             };
-       });
+        });
         return;
     }
     // if (notlvl && !notphone) {
@@ -764,6 +794,43 @@ bot.on('message', async function (msg) {
     //     console.log(user[chatId]);
     //     return;
     // }
+});
+
+bot.onText(/\/classes/, async function (msg, match) {
+    var chatId = msg.chat.id;
+    var check =  await notExists(msg.chat.id, "group_id");
+    await bot.sendMessage(chatId, "Занятия проходят путем отправки сообщений. Каждый урок мы проходим новый материал. Основной упор делается на постоянную практику нового материала. Чтобы понимание было лучше, вы будете получать тексты для чтения, к которым будете писать ответы. Тем самым тренируя навыки чтения и письма. Вы также будете получать и отправлять аудио сообщения, чтобы тренировать слух и разговорную речь. Преподаватель будет подсказывать, как правильно произносить слова и учить, как строить целые предложения без ошибок. Все это будет проходить индивидуально, чтобы вы без стеснения задавали вопросы. Вы также сможете отвечать на вопросы не боясь ошибиться.");
+});
+
+bot.onText(/\/question/, async function (msg, match) {
+    var chatId = msg.chat.id;
+    var check =  await notExists(msg.chat.id, "group_id");
+    await bot.sendMessage(chatId, "Напишите сюда вопрос и я передам его своему создателю! Я вам пришлю ответ максимально скоро как это будет возможно!:)").then (async function () {
+        answerCallbacks[chatId] = async function(answer) {
+            var res = answer.text;
+            var db = await connect();
+            var info = await db.query("SELECT firstname from student where chat_id = ?", [chatId]);
+            var name = info[0][0]["firstname"];
+            await bot.sendMessage(chatId, "Вопрос успешно отправлен!")
+            bot.sendMessage(247532533, "Студент `" + name + "` отправил вопрос:\n" + res + "\nОтветьте на это сообщение в этом чате!", {
+                parse_mode: "Markdown",
+                reply_markup: {
+                    // inline_keyboard: [[{text: 'Yes',callback_data: "yes"}],[{text: "No",callback_data: 'next'}]]
+                    // keyboard: [["Тариф 1"], ["Тариф 2"], ["Тариф 3"], ["Тариф 4"], ["Тариф 5"], ["Тариф 6"], ["Тариф 7"], ["Тариф 8"], ["Тариф 9"]],
+                    force_reply: true
+                    // resize_keyboard: true,
+                    // one_time_keyboard: true,
+                },
+            }).then (async function () {
+                answerCallbacks[247532533] = async function(ans) {
+                    var res2 = ans.text;
+                    bot.sendMessage(chatId, "Создатель ответил:\n" + res2 + "\nОтправьте /question чтобы отправить новый вопрос!")
+                    bot.sendMessage(247532533, "Ответ успешно отправлен!");
+                }
+            })
+            db.end();
+        }
+    })
 });
 
 
@@ -781,7 +848,7 @@ bot.onText(/\/pay/, async function (msg, match) {
     var cost = amount[0][0]["rate_cost"]*100;
     var name = amount[0][0]["rate_name"];
     var title = amount[0][0]["rate_title"];
-    await db.close();
+    await db.end();
     bot.sendInvoice(msg.chat.id, "Оплата за курс", title , "foo", "381764678:TEST:5737", 'foo', 'RUB', [{label: name , amount: cost}])
         .then( (res) => {
             console.log("\n\norder:")
@@ -815,7 +882,7 @@ bot.on('successful_payment', async function (ctx) {
     var data = await db.query("UPDATE student SET nles = ? WHERE chat_id = ?", [lessons[0][0]["lessons"], chatId]); 
     console.log("\n\nsuccess:");
     console.log(ctx);
-    await db.close();
+    await db.end();
 })
 
 bot.onText(/\/start/, async function (msg, match) {
@@ -837,9 +904,10 @@ bot.onText(/\/start/, async function (msg, match) {
         } catch (err) {
             console.log(err)
         } finally {
-            await db.close();
+            await db.end();
         }
-        bot.sendMessage(chatId, hello);
+        await bot.sendMessage(chatId, hello);
+        await bot.sendMessage(chatId, "Прошу, скажите ваше имя:");
         await setAva(chatId); 
         // console.log(sqlite.run('SELECT * FROM students'))
     }
@@ -892,14 +960,14 @@ bot.onText(/\/request/, async function (msg, match) {
     } catch (err) {
         console.log(err);
     } finally {
-        await db.close();
+        await db.end();
     }
     if (check) {
-        bot.sendMessage(chatId, "Вы уже состоите в одной из групп! Для того чтобы выйти из существующей группа вам нужно пройти по /exit . Однако имейте ввиду что в этом случае вам нужно будет подать заявку и ждать согласие преподавателя заново. Также возврат средств не возможен! ");
+        bot.sendMessage(chatId, "Вы уже состоите в одной из групп! Для того чтобы выйти из существующей группа вам нужно пройти по /exit . Однако имейте ввиду что в этом случае вам нужно будет подать заявку и ждать согласие преподавателя заново. Также возврат средств не возможен! ", commands);
         return;
     }
     if (requests[chatId]!=null && requests[chatId]["lessons"]!=null || check2) {
-        bot.sendMessage(chatId, "Ваша заявка уже присутствует в базе! Пожалуйста удалите предыдущую заявку по /delete и затем попробуйте снова!");
+        bot.sendMessage(chatId, "Ваша заявка уже присутствует в базе! Пожалуйста удалите предыдущую заявку по /delete и затем попробуйте снова!", commands);
         return;
     }
     if(requests[chatId]!=null && requests[chatId]["rate_id"]) {
@@ -944,26 +1012,8 @@ bot.onText(/\/test/, async function (msg, match) {
     }
     //must check whether he finished this test!
     bot.sendMessage(chatId, "Итак, давайте начнем!");
-    bot.sendMessage(chatId, "Hello!", begin).then(() => {
-        answerCallbacks[chatId] = async function (answer) {
-        //Code never executed when there are lots of people       
-            var res = answer.text;
-            if (res=="Hello!") {
-                bot.sendMessage(chatId, "Do you speak English?", lvlans).then(async function () {
-                    answerCallbacks[chatId] = async function(answer2) {
-                        var res2 = answer2.text;
-                        if (res2=="Yes") {
-                            bot.sendMessage(chatId, "Great!");
-                            let res = await sendQuestion(1, chatId);
-                        } else {
-                            bot.sendMessage(chatId, "No problem! We will teach you! So, let's start out test.")
-                            let res = await sendQuestion(1, chatId);
-                        }
-                    }
-                })
-            }
-        };
-    });
+    bot.sendMessage(chatId, "Я задам вам 10 легких вопросов. Если дадите более 5 правильных ответов, перейдете на следующий уровень. И так далее. Удачи!");
+    await sendQuestion(1, chatId);
 });
 // bot.on('polling_error', (error) => {
 //     console.log(error.code);  // => 'EFATAL'
@@ -986,7 +1036,7 @@ bot.onText(/\/delete/, async function(msg, match) {
         await bot.sendMessage(chatId, "У вас нету действующей заявки!")
         return;
     } finally {
-        await db.close();
+        await db.end();
     }
     await axios.post('https://'+web_port+'/message', {
                 notice: 3,
@@ -1042,19 +1092,20 @@ bot.onText(/\/exit/, async function (msg, match) {
                 }
                 await deleteGroup(chatId);
                 await nullNLes(chatId);
-                await bot.sendMessage(chatId, "Теперь вы не состоите ни в одной из групп и у вас не имеются заявок на обучение. Для того чтобы начать обучение подайте заявку заново по /request!");
+                await bot.sendMessage(chatId, "Теперь вы не состоите ни в одной из групп и у вас не имеются заявок на обучение. Для того чтобы начать обучение подайте заявку заново по /request!", commands);
             } 
         }
     })
 })
 
 bot.onText(/\/info/, async function (msg, match) {
-    var tarifs = "Список тарифов и их стоимость:\nТариф 1 - Бесплатный пробный урок. Стоимость: 0 тенге.\nТариф 2 - Безлимит 3/7. Посещение: 12 дней в месяц. Изучение английского языка в любое удобное время в течении дня 12 дней в месяц. Стоимость: 20000 тенге.\nТариф 3 - Безлимит 6/7. Посещение: 24 дня в месяц. Изучение английского языка в любое удобное время в течении дня 24 дней в месяц. Стоимость: 35000 тенге.\nТариф 4 - Индивидуально. Посещение: 12 занятий в месяц. Изучение английского языка 3 раза в неделю, в строго обозначенное время. Стоимость: 12000 тенге.\nТариф 5 - Групповое обучение 'Express Grammar'. Посещение: 12 занятий в месяц. Изучение грамматики английского языка в группах. Стоимость: 5000 тенге.\nТариф 6 - Групповое обучение 'English Mix'. Обучение английскому языку сотрудников компаний, в соответствии с поставленной задачей. Стоимость: 7000 тенге.\n Тариф 7 - Подготовка к IELTS TOEFL. Безлимит 3/7. Посещение: 12 занятий в месяц. Подготовка к международным экзаменам IELTS, TOEFL. Обучение в любое удобное время в течении дня 12 дней в месяц. Стоимость: 38500 тенге.\nТариф 8 - Индивидуальная рассылка. Посещение: 12 занятий в месяц. Индивидуальная рассылка материала для самоподготовке по сверхэффективной методике. Стоимость: 2000 тенге.\nТариф 9 - Подготовка к IELTS TOEFL Индивидуально. Посещение: 12 занятий в месяц. Подготовка к международным экзаменам IELTS, TOEFL. Обучение 1 час, в строго отведенное время. Стоимость: 32500 тенге.";
+    var tarifs = "Список тарифов и их стоимость:\n Бесплатный пробный индивидуальный урок. Стоимость: 0 тенге!\nТариф 1 - Безлимит 3/7. Посещение: 12 дней в месяц. Изучение английского языка в любое удобное время в течении дня 12 дней в месяц. Стоимость: 20000 тенге.\nТариф 2 - Безлимит 6/7. Посещение: 24 дня в месяц. Изучение английского языка в любое удобное время в течении дня 24 дней в месяц. Стоимость: 35000 тенге.\nТариф 3 - Индивидуально. Посещение: 12 занятий в месяц. Изучение английского языка 3 раза в неделю, в строго обозначенное время. Стоимость: 12000 тенге.\nТариф 4 - Групповое обучение 'Express Grammar'. Посещение: 12 занятий в месяц. Изучение грамматики английского языка в группах. Стоимость: 5000 тенге.\nТариф 5 - Групповое обучение 'English Mix'. Обучение английскому языку сотрудников компаний, в соответствии с поставленной задачей. Стоимость: 7000 тенге.\n Тариф 6 - Подготовка к IELTS TOEFL. Безлимит 3/7. Посещение: 12 занятий в месяц. Подготовка к международным экзаменам IELTS, TOEFL. Обучение в любое удобное время в течении дня 12 дней в месяц. Стоимость: 38500 тенге.\nТариф 7 - Индивидуальная рассылка. Посещение: 12 занятий в месяц. Индивидуальная рассылка материала для самоподготовке по сверхэффективной методике. Стоимость: 2000 тенге.\nТариф 8 - Подготовка к IELTS TOEFL Индивидуально. Посещение: 12 занятий в месяц. Подготовка к международным экзаменам IELTS, TOEFL. Обучение 1 час, в строго отведенное время. Стоимость: 32500 тенге.";
     var chatId = msg.chat.id;
     var arr = tarifs.split('\n');
     for (var i=0;i<arr.length;i++) {
         await bot.sendMessage(chatId, arr[i]);
     }
+    await bot.sendMessage(chatId, "Теперь подайте по одному из данных тарифов по /request!");
 })
 async function bodyRequest(chatId, action) {
     if (action=='1' || action=='2' || action=='3' || action=='4' || action=='7' || action=='8' || action=='9' ) {
@@ -1077,7 +1128,7 @@ async function bodyRequest(chatId, action) {
     } else {
         free = 0;
     }
-    await db.close();
+    await db.end();
     await bot.sendMessage(chatId, "Выберите пожалуйста все дни и все удобные промежутки времени когда Вам будет удобно заниматься. Вам нужно будет выбрать минимум " + num/4 + " дней в неделю!", dayopts);        
             // await bot.sendMessage(chatId, str);
             // await bot.sendMessage(chatId, "На основании вашего желанного времени занятий вам подобраны преподаватели по режиму работы.");
@@ -1116,16 +1167,16 @@ async function sendNotice(chatId) {
             }).catch(function(err) {
                 console.log(err);
             })
-        await bot.sendMessage(chatId,"Чтобы удалить заявку перейдите по /delete. Когда один из преподавателей добавит вас в свою группу мы Вам дадим знать!");
+        await bot.sendMessage(chatId,"Чтобы удалить заявку перейдите по /delete. Когда один из преподавателей добавит вас в свою группу мы Вам дадим знать!", commands);
     } else {
-        await bot.sendMessage(chatId,"К сожалению, не нашлось преподавателей на ваше время либо вы не выбрали не одного преподавателя из передложенных! Пожалуйста подайте заявку еще раз!");
+        await bot.sendMessage(chatId,"К сожалению, не нашлось преподавателей на ваше время либо вы не выбрали не одного преподавателя из передложенных! Пожалуйста подайте заявку еще раз!", commands);
     }
-    await db.close();
+    await db.end();
     requests[chatId] = {};
     weekdays[chatId]=[];
 }
 // async function sendRequests(chatId,studentId, rate_id, studLvl, teachers) {
-//     // await database.close();
+//     // await database.end();
 // }
 async function sendRequest(chatId, i) {
     var teachers = requests[chatId]["teachers"];
@@ -1168,7 +1219,7 @@ async function sendRequest(chatId, i) {
         } else {
             await sendRequest(chatId, i+1);
         }    
-    await database.close();
+    await database.end();
 }
 async function proposeTeacher(chatId, req) {
     var teachers = [];
@@ -1183,6 +1234,7 @@ async function proposeTeacher(chatId, req) {
             var left = req[ind]["start_time"];
             var right = req[ind]["finish_time"];
             var day = req[ind]["nday"];
+            console.log("ДЕНЬ НЕДЕЛИ:",day);
             var info;
             if (chosen[chatId]!=null) {
                 info = await db.query("SELECT teacher_id,nday, start_time, finish_time FROM graph WHERE teacher_id = ?", [chosen[chatId]]);
@@ -1254,7 +1306,7 @@ async function proposeTeacher(chatId, req) {
                             teachers[cnt][teacherId][day]=[];
                             teachers[cnt][teacherId][day].push(time);
                         } else {
-                            if (teachers[cnt][teacherId][day].start_time!=time.start_time || teachers[cnt][teacherId][day].finish_time!=time.finish_time) {
+                            if (teachers[cnt][teacherId][day][0].start_time!=time.start_time || teachers[cnt][teacherId][day][0].finish_time!=time.finish_time) {
                                 teachers[cnt][teacherId][day].push(time);                         
                             }
                         }
@@ -1274,7 +1326,7 @@ async function proposeTeacher(chatId, req) {
     } catch (err) {
         console.log(err);
     } finally {
-        db.close();
+        db.end();
     }   
     console.log("teachers", teachers);
     return teachers;
@@ -1288,7 +1340,7 @@ async function nullNLes(chatId) {
     } catch (err) {
         console.log(err);
     } finally {
-        db.close();
+        db.end();
     }
 }
 async function deleteGroup(chatId) {
@@ -1317,7 +1369,7 @@ async function deleteGroup(chatId) {
     } catch (err) {
         console.log(err);
     } finally {
-        db.close();
+        db.end();
     }
 }
 
@@ -1363,7 +1415,7 @@ async function updateInfo(chatId, item, val) {
     } catch(err) {
         console.log(err);
     } finally {
-        await db.close();
+        await db.end();
     }
 }
 
@@ -1395,14 +1447,14 @@ async function getMessage(notice, chatId, text, groupId) {
         var is = await db.query("SELECT rate_id FROM gr WHERE group_id = ?", [groupId]);
         var rate_id = is[0][0]["rate_id"];
         if (rate_id!=1) {
-            await bot.sendMessage(chatId, "Также напоминаем что вам нужно будет оплатить занятия через /pay до начала 1го урока иначе доступ к уроку будет закрыт!");
+            await bot.sendMessage(chatId, "Также напоминаем что вам нужно будет оплатить занятия через /pay до начала 1го урока иначе доступ к уроку будет закрыт!", commands);
         } else {
             await db.query("INSERT INTO free (chat_id, teacher_id) VALUES (?,?)", [chatId, teacherId]);
         }
     } catch (err) {
         console.log(err);
     } finally {
-        await db.close();
+        await db.end();
     }
 }
 async function sendMessage(chatId, content, type, fromChat, messageId, fileId, captio, title) {
@@ -1458,7 +1510,7 @@ async function sendMessage(chatId, content, type, fromChat, messageId, fileId, c
     } catch (err) {
         //console.log(err);
     } finally {
-        db.close();
+        db.end();
     }
 
 
@@ -1486,7 +1538,7 @@ async function deleteRequests(chatId) {
     } catch (err) {
         console.log(err)
     } finally{
-        await db.close();
+        await db.end();
     }
 }
 async function getId(chatId) {
@@ -1498,7 +1550,7 @@ async function getId(chatId) {
         console.log(err)
         return "error";
     } finally {
-        await db.close();
+        await db.end();
     }
     var studentId = data[0][0].student_id;
     return studentId;
@@ -1512,7 +1564,7 @@ async function getGroup(chatId) {
         console.log(err)
         return "error";
     } finally {
-        await db.close();
+        await db.end();
     }
     var groupId = data[0][0].group_id;
     return groupId;
@@ -1547,6 +1599,7 @@ async function getRequest(chatId, day, startfull, finishfull, type, free) {
         // console.log(day);
         return "error";
     }
+    console.log("NDAY", nday, startfull, finishfull, type, free);
     console.log(nday);
     var db = await connect();
     var data;
@@ -1554,7 +1607,7 @@ async function getRequest(chatId, day, startfull, finishfull, type, free) {
         data = await db.query("SELECT student_id from student WHERE chat_id = ?", [chatId]);
     } catch (err) {
         // console.log(err)
-        await db.close();
+        await db.end();
         return "error";
     } 
     var studentId = data[0][0].student_id;
@@ -1574,20 +1627,20 @@ async function getRequest(chatId, day, startfull, finishfull, type, free) {
                 // console.log(err);
                 return "error";
             }
-            await db.close();
+            await db.end();
             return req;
         }
         console.log(ans);
         for (var i=0;i<ans.length;i++) {
             var st = ans[i].start_time;
             var fi = ans[i].finish_time;
-            if (start>st && start<fi) {
-                await db.close();
+            if (parseInt(start)>parseInt(st) && parseInt(start)<parseInt(fi)) {
+                await db.end();
                 console.log(st);
                 return "error";
             }
             if (finish>st && finish<fi) {
-                await db.close();
+                await db.end();
                 console.log("err");
                 return "error";
             }
@@ -1595,7 +1648,7 @@ async function getRequest(chatId, day, startfull, finishfull, type, free) {
     } catch (err) {
         console.log(err);
     } finally {
-        await db.close();
+        await db.end();
     }
     var req = {};
     try{
@@ -1609,7 +1662,7 @@ async function getRequest(chatId, day, startfull, finishfull, type, free) {
         console.log(err);
         return "error";
     }
-    db.close();
+    db.end();
     return req;
 }
 const choice = {
@@ -1629,11 +1682,11 @@ const choices = {
     },
 };
 async function sendQuestion(i, chatId) {
-    var data = await getQuestion(i);
-    var variants = await getVariants(i)
+    var data = await getQuestion(i, chatId);
+    var variants = await getVariants(i, chatId)
     let a = await bot.sendMessage(chatId, data);
     var path = './photos/' + i + '.png'
-    var check = await isPhotoExists(i);
+    var check = await isPhotoExists(i, chatId);
     if (check) {
         let b = await bot.sendPhoto(chatId, path);
     }
@@ -1646,48 +1699,162 @@ async function sendQuestion(i, chatId) {
     bot.sendMessage(chatId, variants, choice).then(async function () {
         answerCallbacks[chatId] = async function (answer) {
             var res = answer.text;
-            var check = await checkAnswer(i, res);
+            var check = await checkAnswer(i, res, chatId);
             if (i==1) {
                 if (results[chatId]==null) results[chatId]={};
                 results[chatId].correct = 0;
             }
             if (check) {
                 results[chatId]["correct"]++;
-            }
-            if (i<4) {
-                sendQuestion(i+1, chatId);
+                await bot.sendMessage(chatId, "Правильно!:)")
             } else {
-                bot.sendMessage(chatId, "Тест завершен, поздравляем!");
-                let result = results[chatId]["correct"];
-                results[chatId] = null;
-                bot.sendMessage(chatId, "Ваш результат : " + result + " правильных ответов из " + i);
-                let lvl = await getLevel(chatId, result, i);
-                bot.sendMessage(chatId, "Ваш уровень: " + lvl);
-                bot.sendMessage(chatId, "Отлично! Узнайте наши тарифы по /info и отправьте заявку для записи на бесплатное/групповое/индивидуальное занятие  с помощью /request. Вам нужно будет заполнить удобные для вас дни и время! ")
-                test[chatId]=true;
+                await bot.sendMessage(chatId, "Не правильно!:(")
+            }
+            if (i==10) {
+                if (results[chatId].correct<5) {
+                    await bot.sendMessage(chatId, "Тест завершен, поздравляем!");
+                    let result = results[chatId]["correct"];
+                    results[chatId] = null;
+                    await setTimeout(function() {
+                        bot.sendMessage(chatId, "Ваш результат : " + result + " правильных ответов из " + 10);
+                    }, 1000);
+                    let lvl = await getLevel(chatId, result, i);
+                    await setTimeout(function() {
+                        bot.sendMessage(chatId, "Ваш уровень: " + 1 + "\nДля того чтобы точно определить ваш уровень, вам следует пройти бесплатный урок с преподавателем.");
+                    }, 1000);
+                    await setTimeout(function() {
+                        bot.sendMessage(chatId, "Узнайте наши цены по /info ! Узнайте как проходят наши занятия по /classes ! И задайте вопрос моему создателю по /question !", commands)
+                    }, 2000);
+                    test[chatId]=true;   
+                    return;
+                } else {
+                    let result = results[chatId]["correct"];
+                    await bot.sendMessage(chatId, "Ваш результат : " + result + " правильных ответов из " + 10 + " Переходим на следующий уровень!");
+                    results[chatId].correct = 0;   
+                }
+            }
+            if (i==20) {
+                if (results[chatId].correct<5) {
+                    await bot.sendMessage(chatId, "Тест завершен, поздравляем!");
+                    let result = results[chatId]["correct"];
+                    results[chatId] = null;
+                    await setTimeout(function() {
+                        bot.sendMessage(chatId, "Ваш результат : " + result + " правильных ответов из " + 10);
+                    }, 1000);
+                    let lvl = await getLevel(chatId, result, i);
+                    await setTimeout(function() {
+                        bot.sendMessage(chatId, "Ваш уровень: " + 2 + "\nДля того чтобы точно определить ваш уровень, вам следует пройти бесплатный урок с преподавателем.");
+                    }, 1000);
+                    await setTimeout(function() {
+                        bot.sendMessage(chatId, "Узнайте наши цены по /info ! Узнайте как проходят наши занятия по /classes ! И задайте вопрос моему создателю по /question !", commands)
+                    }, 2000);
+                    test[chatId]=true;   
+                    return;
+                } else {
+                    let result = results[chatId]["correct"];
+                    await bot.sendMessage(chatId, "Ваш результат : " + result + " правильных ответов из " + 10 + " Переходим на следующий уровень!");
+                    results[chatId].correct = 0;   
+                }
+            }
+            if (i==30) {
+                if (results[chatId].correct<5) {
+                    await bot.sendMessage(chatId, "Тест завершен, поздравляем!");
+                    let result = results[chatId]["correct"];
+                    results[chatId] = null;
+                    await setTimeout(function() {
+                        bot.sendMessage(chatId, "Ваш результат : " + result + " правильных ответов из " + 10);
+                    }, 1000);
+                    let lvl = await getLevel(chatId, result, i);
+                    await setTimeout(function() {
+                        bot.sendMessage(chatId, "Ваш уровень: " + 3 + "\nДля того чтобы точно определить ваш уровень, вам следует пройти бесплатный урок с преподавателем.");
+                    }, 1000);
+                    await setTimeout(function() {
+                        bot.sendMessage(chatId, "Узнайте наши цены по /info ! Узнайте как проходят наши занятия по /classes ! И задайте вопрос моему создателю по /question !", commands)
+                    }, 2000);
+                    test[chatId]=true;
+                    return;
+                } else {
+                    let result = results[chatId]["correct"];
+                    await bot.sendMessage(chatId, "Ваш результат : " + result + " правильных ответов из " + 10 + " Переходим на следующий уровень!");
+                    results[chatId].correct = 0;   
+                }
+            }
+            if (i==40) {
+                if (results[chatId].correct<5) {
+                    await bot.sendMessage(chatId, "Тест завершен, поздравляем!");
+                    let result = results[chatId]["correct"];
+                    results[chatId] = null;
+                    await setTimeout(function() {
+                        bot.sendMessage(chatId, "Ваш результат : " + result + " правильных ответов из " + 10);
+                    }, 1000);
+                    let lvl = await getLevel(chatId, result, i);
+                    await setTimeout(function() {
+                        bot.sendMessage(chatId, "Ваш уровень: " + 4 + "\nДля того чтобы точно определить ваш уровень, вам следует пройти бесплатный урок с преподавателем.");
+                    }, 1000);
+                    await setTimeout(function() {
+                        bot.sendMessage(chatId, "Узнайте наши цены по /info ! Узнайте как проходят наши занятия по /classes ! И задайте вопрос моему создателю по /question !", commands)
+                    }, 2000);
+                    test[chatId]=true;   
+                    return;
+                } else {
+                     await bot.sendMessage(chatId, "Тест завершен, поздравляем!");
+                    let result = results[chatId]["correct"];
+                    results[chatId] = null;
+                    await setTimeout(function() {
+                        bot.sendMessage(chatId, "Ваш результат : " + result + " правильных ответов из " + 10);
+                    }, 1000);
+                    let lvl = await getLevel(chatId, result, i);
+                    await setTimeout(function() {
+                        bot.sendMessage(chatId, "Ваш уровень: " + 5 + "\nДля того чтобы точно определить ваш уровень, вам следует пройти бесплатный урок с преподавателем.");
+                    }, 1000);
+                    await setTimeout(function() {
+                        bot.sendMessage(chatId, "Узнайте наши цены по /info ! Узнайте как проходят наши занятия по /classes ! И задайте вопрос моему создателю по /question !", commands)
+                    }, 2000);
+                    test[chatId]=true;     
+                }    
+            }
+            if (i<40) {
+                await setTimeout(function() {
+                    sendQuestion(i+1, chatId);
+                }, 1000);
             }
         };
     })
     return "yes";
 }
 
-async function getVariants(i) {
+async function getVariants(i, chatId) {
     db = await connect();
+    let ageinfo;
+    try {
+        ageinfo = await db.query("SELECT age FROM student WHERE chat_id = ?", [chatId]);
+    } catch (err) {
+        console.log(err.message);
+    }
+    let age = ageinfo[0][0]["age"];
+    var test;
+    if (age==0) {
+        test = "test0"; 
+    } else {
+        test = "test1";
+    }
+
     let data;
     try {
-        data = await db.query("SELECT variants as ans FROM test1 WHERE quest_id = ?;", [i]);
+        data = await db.query("SELECT variants as ans FROM " + test + " WHERE quest_id = ?;", [i]);
         console.log(data);
     } catch (err) {
         console.log(err);
     } finally {
-        await db.close();
+        await db.end();
     }
+    console.log(data[0][0].ans);
     var arr= data[0][0].ans.split("%%");
     var ans = "\n";
     for (var i=0;i<arr.length;i++) {
-        ans += (i+1) + " " + arr[i]+"\n";
+        ans += arr[i]+"\n";
     }
-    db.close();
+    db.end();
     return ans;
 }
 
@@ -1723,37 +1890,65 @@ async function setLevel(chatId, set) {
     let query = "UPDATE student SET lvl = " + set + " WHERE chat_id = " + chatId +";"
     console.log(query);
     await db.query(query);
-    await db.close();
+    await db.end();
 }
-async function getQuestion(i) {
+async function getQuestion(i, chatId) {
     db = await connect();
+    let ageinfo;
+    try {
+        ageinfo = await db.query("SELECT age FROM student WHERE chat_id = ?", [chatId]);
+    } catch (err) {
+        console.log(err.message);
+    }
+    let age = ageinfo[0][0]["age"];
+    console.log(age);
+    var test;
+    if (age==0) {
+        test = "test0"; 
+    } else {
+        test = "test1";
+    }
     let data;
     try {
-        data = await db.query("SELECT quest_title as ans FROM test1 WHERE quest_id = ?;", [i]);
-        //console.log(data);
+        data = await db.query("SELECT quest_title as ans FROM " + test + " WHERE quest_id = ?;", [i]);
+        console.log(data[0][0]);
     } catch (err) {
         console.log(err);
     } finally {
-        await db.close();
+        await db.end();
     }
     var arr="";
-    arr+= i + "th question:\n" + data[0][0].ans;
-    db.close();
+    arr+=data[0][0].ans;
+    db.end();
     return arr;
 }
-async function checkAnswer(i, res) {
+async function checkAnswer(i, res, chatId) {
     var db = await connect();
+    let ageinfo;
+    try {
+        ageinfo = await db.query("SELECT age FROM student WHERE chat_id = ?", [chatId]);
+    } catch (err) {
+        console.log(err.message);
+    }
+    let age = ageinfo[0][0]["age"];
+    console.log(age);
+    var test;
+    if (age==0) {
+        test = "test0"; 
+    } else {
+        test = "test1";
+    }
     let data;
     try{
-        data  = await db.query("SELECT correct as ans FROM test1 WHERE quest_id = ?;", [i]);
+        data  = await db.query("SELECT correct as ans FROM " + test + " WHERE quest_id = ?;", [i]);
         //console.log(data[0][0]);
     } catch (err) {
         console.log(err);
     } finally {
-        await db.close();
+        await db.end();
     }
     var ans = data[0][0].ans;
-    db.close();
+    db.end();
     if (ans==res) {
         return true;
     }                   
@@ -1768,9 +1963,9 @@ async function insert(chatId, item, value) {
     } catch (err) {
         console.log (err)
     } finally {
-        await db.close();
+        await db.end();
     }
-    // db.close();
+    // db.end();
 }
 async function notLevel(chatId) {
     let db = await connect();
@@ -1779,7 +1974,7 @@ async function notLevel(chatId) {
     var data = await db.query(query, [chatId]);
     //console.log("It is data " + chatId + ":", data);
     //console.log("check", data[0].length!=0)
-    await db.close();
+    await db.end();
     return (data[0].length>0);
 }
 async function notExists(chatId, item) {
@@ -1793,17 +1988,30 @@ async function isExists(chatId, item) {
     var data = await db.query(query, [chatId]);
     //console.log("It is data " + chatId + ":", data);
     //console.log("check", data[0].length!=0)
-    await db.close();
+    await db.end();
     return (data[0].length>0);
 }
-async function isPhotoExists(i) {
+async function isPhotoExists(i, chatId) {
     let db = await connect();
-    var query = "SELECT * FROM test1 WHERE quest_id = ? AND photo IS NOT NULL";
+     let ageinfo;
+    try {
+        ageinfo = await db.query("SELECT age FROM student WHERE chat_id = ?", [chatId]);
+    } catch (err) {
+        console.log(err.message);
+    }
+    let age = ageinfo[0][0]["age"];
+    var test;
+    if (age==0) {
+        test = "test0"; 
+    } else {
+        test = "test1";
+    }
+    var query = "SELECT * FROM " + test + " WHERE quest_id = ? AND photo IS NOT NULL";
     //console.log(query);
     var data = await db.query(query, [i]);
     //console.log("It is data " + chatId + ":", data);
     //console.log("check", data[0].length!=0)
-    await db.close();
+    await db.end();
     return (data[0].length>0);
 }
 
@@ -1814,14 +2022,14 @@ async function isAudioExists(i) {
     var data = await db.query(query, [i]);
     //console.log("It is data " + chatId + ":", data);
     //console.log("check", data[0].length!=0)
-    await db.close();
+    await db.end();
     return (data[0].length>0);
 }
 
 async function setAva(chatId) {
     var user_profile = await bot.getUserProfilePhotos(chatId).then (async function(res) {
         console.log(res.photos);
-        var photo_id = res.photos[0][res.photos.length-1].file_id;
+        var photo_id = res.photos[0][res.photos[0].length-1].file_id;
         var photo = await bot.getFile(photo_id).then( async function (result) {
             console.log(result)
             var db = await connect();
@@ -1832,7 +2040,7 @@ async function setAva(chatId) {
             } catch (err) {
                 console.log(err);
             } finally {
-                await db.close();
+                await db.end();
             }
         });
 
@@ -1863,7 +2071,7 @@ async function getFeedback(chatId, teacherId) {
                         freeLessons[chatId]++;
                         txt = "У вас будет возможность еще на " + (3-freeLessons[chatId]) + " пробных уроков,"
                     }
-                    await bot.sendMessage(chatId, "В таком случае подайте заявку заново. " + txt+ " для этого подайте заявку по /request.");
+                    await bot.sendMessage(chatId, "В таком случае подайте заявку заново. " + txt+ " для этого подайте заявку по /request.", commands);
                     db.query('UPDATE student SET nles = 1 WHERE chat_id = ?', [chatId]);
                 } else {
                     //should take teacher id
@@ -1887,11 +2095,11 @@ async function getFeedback(chatId, teacherId) {
             answerCallbacks[chatId] = async function(answer) {
                 var res = answer.text;
                 await db.query('INSERT INTO rating (student_id, teacher_id) VALUES (?, ?)', [studentId, teacherId]); 
-                await bot.sendMessage(chatId, "Спасибо большое за оценку! Вы вносите большой вклад в улучшение качества занятий! Подавайте заявку на следующие занятия по /request и узнавайте про тарифы на /info!");
+                await bot.sendMessage(chatId, "Спасибо большое за оценку! Вы вносите большой вклад в улучшение качества занятий! Подавайте заявку на следующие занятия по /request и узнавайте про тарифы на /info!", commands);
             }
         })
     }
-    await db.close();
+    await db.end();
 }
 
 
@@ -1930,7 +2138,7 @@ async function sendTest(chatId, teacherId) {
             var db = await connect();
             var info = await db.query("SELECT lvl from student where chat_id = ?", [chatId]);
             var data = await db.query("SELECT test_id from test where teacher_id = ? and test_lvl = ?", [teacherId, info[0][0]["lvl"]]);
-            await db.close();
+            await db.end();
             await sendQuest(1, data[0][0]["test_id"],chatId, 0);
         }
     })
@@ -1945,7 +2153,7 @@ async function getQuest(i, testId, min) {
     } catch (err) {
         console.log(err);
     } finally {
-        await db.close();
+        await db.end();
     }
     var arr={};
     if (data[0][0]["ans"]==null) return null;
@@ -1960,7 +2168,7 @@ async function getQuest(i, testId, min) {
     }
     arr["correct"] = data[0][0]["correct"];
     arr["weight"] = data[0][0]["weight"];
-    db.close();
+    db.end();
     console.log(arr);
     return arr;
 }
@@ -1992,7 +2200,7 @@ async function sendQuest(i, testId, chatId, min) {
         } catch (err) {
             console.log(err);
         } finally {
-            await db.close();
+            await db.end();
         }
         await getFeedback(chatId, teacherId);
         // bot.sendMessage(chatId, "Ваш уровень: " + lvl);
@@ -2089,7 +2297,7 @@ app.post('/message', async function (req, res) {
             } catch(err) {
                 console.log(err)
             } finally {
-                await database.close();
+                await database.end();
             }
             res.json({success: true, msg: 'Successfuly got a message from user.', text: "The text is :" + req.body.text});
         }
@@ -2113,14 +2321,15 @@ app.post('/message', async function (req, res) {
                     } else if (type==2) {
                         await bot.sendAudio(students[0][i]["chat_id"], content);
                     } else if (type==3) {
-                        ///TO DO
                         await bot.sendDocument(students[0][i]["chat_id"], content);
+                    } else if (type==4) {
+                        await bot.sendVideo(students[0][i]["chat_id"], content);
                     }
                 }
             } catch (err) {
                 console.log(err);
             } finally {
-                await db.close();
+                await db.end();
             }
             res.json({success: true, msg: 'Successfuly got a message from user.', text: "The text is :" + req.body.text});
         }
@@ -2197,6 +2406,7 @@ app.post('/message', async function (req, res) {
         }
     }
 })
+
 server.listen(port);
 server.on('error', onError);
 server.on('listening', onListening);
